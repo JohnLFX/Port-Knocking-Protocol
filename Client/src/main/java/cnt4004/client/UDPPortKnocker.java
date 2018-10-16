@@ -1,4 +1,4 @@
-package edu.usf.myweb.jcameron2.cnt4004.client;
+package cnt4004.client;
 
 public class UDPPortKnocker {
 

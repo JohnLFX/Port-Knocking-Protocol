@@ -1,4 +1,4 @@
-package edu.usf.myweb.jcameron2.cnt4004.server;
+package cnt4004.server;
 
 public interface UDPKnockCallback {
 

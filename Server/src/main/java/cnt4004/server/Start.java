@@ -2,12 +2,16 @@ package cnt4004.server;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class Start {
 
@@ -30,16 +34,18 @@ public class Start {
             config.load(in);
         }
 
-        DatagramSocket receiveSocket = new DatagramSocket(Integer.parseInt(config.getProperty("port", "8392")));
+        List<Integer> portKnockSequence = Arrays.stream(config.getProperty("knock-sequence").split(Pattern.quote(",")))
+                .mapToInt(Integer::valueOf).boxed().collect(Collectors.toList());
 
-        System.out.println("UDP Socket bound on " + receiveSocket.getLocalSocketAddress());
+        // TODO Allow duplicate ports in future update
+        if (portKnockSequence.size() != portKnockSequence.stream().distinct().count()) {
+            System.out.println("Invalid port knock sequence in " + configFile + ": Sequence must contain only unique values");
+            return;
+        }
 
-        new Thread(new UDPListener(receiveSocket, new UDPKnockCallback() {
-            @Override
-            public void onKnock() {
-                System.out.println("I GOT KNOCKED BOI");
-            }
-        })).start();
+        InetAddress bindAddress = InetAddress.getLoopbackAddress(); //TODO Configurable
+
+        new UDPKnockServer(bindAddress, portKnockSequence);
 
     }
 

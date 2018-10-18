@@ -1,4 +1,5 @@
 rootProject.name = 'CNT4004 Project'
 include 'Server'
 include 'Client'
+include 'Protocol'
 

@@ -1,5 +1,8 @@
 package cnt4004.server;
 
+import cnt4004.protocol.Packet;
+import cnt4004.protocol.ProtocolMap;
+
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -9,13 +12,10 @@ import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.util.Arrays;
 
+import static cnt4004.protocol.ProtocolMap.MAGIC;
+import static cnt4004.protocol.ProtocolMap.MAX_BUFFER;
+
 public class UDPKnockPortListener implements Runnable {
-
-    private static final byte[] MAGIC = new byte[]{
-            '7', 'S', 'z', 'C', 'L', 'C', 'g', 'c'
-    };
-
-    private static final int MAX_BUFFER = 1000; // TODO Determine buffer
 
     private DatagramSocket socket;
 
@@ -36,31 +36,31 @@ public class UDPKnockPortListener implements Runnable {
 
                 socket.receive(packet);
 
+                //TODO Closing stream?
                 DataInputStream in = new DataInputStream(new ByteArrayInputStream(buffer));
 
                 byte[] receivedMagic = new byte[MAGIC.length];
                 int read = in.read(receivedMagic, 0, MAGIC.length);
 
                 if (read != MAGIC.length || !Arrays.equals(receivedMagic, MAGIC)) {
-                    in.close();
                     continue;
                 }
 
-                int packetID = in.read(); // Packet ID (byte)
+                byte packetID = in.readByte(); // Packet ID (byte)
 
-                switch (packetID) {
+                Packet packetWrapper = ProtocolMap.createFromID(packetID);
 
-                    case 0:
-                        System.out.println("Knock packet");
-                        break;
-                    case 1:
-                        System.out.println("Nonce packet");
-                        break;
-                    default:
-                        break;
+                if (packetWrapper != null) {
+
+                    packetWrapper.read(in);
+
+                    System.out.println("Read packet ID " + packetID);
+
+                } else {
+
+                    throw new IOException("Unknown packet ID: " + packetID);
+
                 }
-
-                in.close();
 
             } catch (IOException e) {
                 e.printStackTrace();

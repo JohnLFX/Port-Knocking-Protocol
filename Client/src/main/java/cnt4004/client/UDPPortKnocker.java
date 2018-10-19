@@ -1,6 +1,8 @@
 package cnt4004.client;
 
+import cnt4004.protocol.KnockPacket;
 import cnt4004.protocol.NoncePacket;
+import cnt4004.protocol.Packet;
 import cnt4004.protocol.ProtocolMap;
 
 import javax.crypto.spec.SecretKeySpec;
@@ -9,6 +11,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -55,6 +59,46 @@ public class UDPPortKnocker {
         socket.send(new DatagramPacket(payload, payload.length, serverAddress, portSequence.get(0)));
 
         System.out.println("Sent");
+
+        payload = new byte[ProtocolMap.MAX_BUFFER];
+
+        DatagramPacket datagramPacket = new DatagramPacket(payload, payload.length);
+        socket.receive(datagramPacket);
+
+        Packet packet = ProtocolMap.decodePayload(payload);
+
+        if (packet == null) {
+            System.out.println("Unknown packet");
+            return;
+        }
+
+        NoncePacket noncePacket = (NoncePacket) packet;
+
+        System.out.println("Using Nonce " + noncePacket.getNonce());
+
+        List<Object[]> payloads = new ArrayList<>(); // Ugly hack
+
+        for (int i = 0; i < portSequence.size(); i++) {
+
+            int port = portSequence.get(i);
+
+            payloads.add(
+                    new Object[]{
+                            ProtocolMap.generatePayload(new KnockPacket(noncePacket.getNonce(),
+                                    (short) i, (short) (portSequence.size() - 1))),
+                            port
+                    }
+            );
+
+        }
+
+        Collections.shuffle(payloads);
+
+        for (Object[] data : payloads) {
+            byte[] bytes = (byte[]) data[0];
+            int port = (int) data[1];
+            socket.send(new DatagramPacket(bytes, bytes.length, serverAddress, port));
+        }
 
     }
 

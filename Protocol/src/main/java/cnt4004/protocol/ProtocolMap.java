@@ -13,12 +13,11 @@ import java.util.Map;
 
 public class ProtocolMap {
 
-    // TODO Unmodifiable?
-    public static final byte[] MAGIC = new byte[]{
+    private static final byte[] MAGIC = new byte[]{
             '7', 'S', 'z', 'C', 'L', 'C', 'g', 'c'
     };
 
-    public static final int MAX_BUFFER = 42; // TODO Determine buffer
+    public static final int MAX_BUFFER = 100; // TODO Determine buffer
 
     private static final Map<Byte, Constructor<? extends Packet>> PACKET_MAP = new HashMap<>();
 
@@ -46,7 +45,10 @@ public class ProtocolMap {
         return null;
     }
 
-    public static void initializeHMAC(SecretKeySpec secretKeySpec) throws InvalidKeyException, NoSuchAlgorithmException {
+    public static synchronized void initializeHMAC(SecretKeySpec secretKeySpec) throws InvalidKeyException, NoSuchAlgorithmException {
+
+        if (HMAC != null)
+            throw new IllegalStateException("Already initialized");
 
         HMAC = Mac.getInstance(secretKeySpec.getAlgorithm());
         HMAC.init(secretKeySpec);
@@ -55,9 +57,10 @@ public class ProtocolMap {
         HMAC_LENGTH = HMAC.doFinal("test".getBytes()).length;
 
         System.out.println("Initialized MAC: " + secretKeySpec.getAlgorithm() + " with output length of " + HMAC_LENGTH);
+
     }
 
-    public static Packet decodePayload(byte[] payload) throws IOException {
+    public static synchronized Packet decodePayload(byte[] payload) throws IOException {
 
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(payload);
         DataInputStream in = new DataInputStream(inBuffer);
@@ -84,7 +87,9 @@ public class ProtocolMap {
         byte[] parsedMAC = new byte[HMAC_LENGTH];
         in.readFully(parsedMAC);
 
-        HMAC.update(payload, 0, payload.length - parsedMAC.length);
+        in.close();
+
+        HMAC.update(payload, 0, MAGIC.length + 1 + packet.length());
         byte[] calculatedMAC = HMAC.doFinal();
 
         if (!Arrays.equals(parsedMAC, calculatedMAC)) {
@@ -96,7 +101,7 @@ public class ProtocolMap {
 
     }
 
-    public static byte[] generatePayload(Packet packet) throws IOException {
+    public static synchronized byte[] generatePayload(Packet packet) throws IOException {
 
         ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(outputBuffer);
@@ -116,7 +121,7 @@ public class ProtocolMap {
         int payloadLength = packetPayload.length + mac.length;
 
         if (payloadLength > MAX_BUFFER)
-            throw new IOException("Payload overflows buffer");
+            throw new IOException("Payload overflows buffer (Packet length: " + payloadLength + ", max buffer: " + MAX_BUFFER + ")");
 
         byte[] payload = new byte[payloadLength];
 

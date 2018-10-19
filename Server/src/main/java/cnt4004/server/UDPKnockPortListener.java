@@ -1,5 +1,7 @@
 package cnt4004.server;
 
+import cnt4004.protocol.KnockPacket;
+import cnt4004.protocol.NoncePacket;
 import cnt4004.protocol.Packet;
 import cnt4004.protocol.ProtocolMap;
 
@@ -14,10 +16,12 @@ import static cnt4004.protocol.ProtocolMap.MAX_BUFFER;
 public class UDPKnockPortListener implements Runnable {
 
     private DatagramSocket socket;
+    private final PacketHandler packetHandler;
 
-    public UDPKnockPortListener(InetSocketAddress socketAddress) throws SocketException {
+    public UDPKnockPortListener(PacketHandler packetHandler, InetSocketAddress socketAddress) throws SocketException {
         this.socket = new DatagramSocket(socketAddress);
         this.socket.setReceiveBufferSize(MAX_BUFFER);
+        this.packetHandler = packetHandler;
     }
 
     @Override
@@ -36,7 +40,17 @@ public class UDPKnockPortListener implements Runnable {
 
                 if (packetWrapper != null) {
 
-                    System.out.println("Got packet " + packetWrapper.getID());
+                    switch (packetWrapper.getID()) {
+                        case 0:
+                            packetHandler.receivedKnockPacket(this, packet, (KnockPacket) packetWrapper);
+                            break;
+                        case 1:
+                            packetHandler.receivedNoncePacket(this, packet, (NoncePacket) packetWrapper);
+                            break;
+                        default:
+                            System.out.println("Got unknown packet ID: " + packetWrapper.getID());
+                            break;
+                    }
 
                 }
 
@@ -46,6 +60,14 @@ public class UDPKnockPortListener implements Runnable {
 
         }
 
+    }
+
+    public int getPortBound() {
+        return socket.getLocalPort();
+    }
+
+    public void sendDatagramPacket(DatagramPacket packet) throws IOException {
+        socket.send(packet);
     }
 
 }

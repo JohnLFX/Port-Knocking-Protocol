@@ -12,4 +12,6 @@ public interface Packet {
 
     void write(DataOutputStream out) throws IOException;
 
+    int length();
+
 }

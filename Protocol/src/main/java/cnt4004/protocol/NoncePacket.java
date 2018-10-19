@@ -31,22 +31,31 @@ public class NoncePacket implements Packet {
 
     @Override
     public void read(DataInputStream in) throws IOException {
-        if (in.readBoolean()) {
+        long mostSignificant = in.readLong();
+        long leastSignificant = in.readLong();
+
+        if (mostSignificant == Long.MIN_VALUE && leastSignificant == Long.MAX_VALUE) {
             nonce = null;
         } else {
-            nonce = new UUID(in.readLong(), in.readLong());
+            nonce = new UUID(mostSignificant, leastSignificant);
         }
     }
 
     @Override
     public void write(DataOutputStream out) throws IOException {
         if (nonce == null) {
-            out.writeBoolean(true);
+            // TODO Sentinel values
+            out.writeLong(Long.MIN_VALUE);
+            out.writeLong(Long.MAX_VALUE);
         } else {
-            out.writeBoolean(false);
             out.writeLong(nonce.getMostSignificantBits());
             out.writeLong(nonce.getLeastSignificantBits());
         }
+    }
+
+    @Override
+    public int length() {
+        return 16; // 2 longs is 2 * 8 bytes
     }
 
 }

@@ -54,7 +54,7 @@ public class Start {
 
         ProtocolMap.initializeHMAC(new SecretKeySpec(secret.getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
 
-        new UDPKnockServer(bindAddress, portKnockSequence);
+        new UDPKnockServer(bindAddress, portKnockSequence, config.getProperty("open-command"), config.getProperty("close-command"));
 
     }
 

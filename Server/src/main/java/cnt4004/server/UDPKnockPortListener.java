@@ -1,7 +1,5 @@
 package cnt4004.server;
 
-import cnt4004.protocol.KnockPacket;
-import cnt4004.protocol.NoncePacket;
 import cnt4004.protocol.Packet;
 import cnt4004.protocol.ProtocolMap;
 
@@ -16,12 +14,12 @@ import static cnt4004.protocol.ProtocolMap.MAX_BUFFER;
 public class UDPKnockPortListener implements Runnable {
 
     private DatagramSocket socket;
-    private final PacketHandler packetHandler;
+    private final PacketConsumer packetConsumer;
 
-    public UDPKnockPortListener(PacketHandler packetHandler, InetSocketAddress socketAddress) throws SocketException {
+    public UDPKnockPortListener(PacketConsumer packetConsumer, InetSocketAddress socketAddress) throws SocketException {
         this.socket = new DatagramSocket(socketAddress);
         this.socket.setReceiveBufferSize(MAX_BUFFER);
-        this.packetHandler = packetHandler;
+        this.packetConsumer = packetConsumer;
     }
 
     @Override
@@ -40,17 +38,7 @@ public class UDPKnockPortListener implements Runnable {
 
                 if (packetWrapper != null) {
 
-                    switch (packetWrapper.getID()) {
-                        case 0:
-                            packetHandler.receivedKnockPacket(this, packet, (KnockPacket) packetWrapper);
-                            break;
-                        case 1:
-                            packetHandler.receivedNoncePacket(this, packet, (NoncePacket) packetWrapper);
-                            break;
-                        default:
-                            System.out.println("Got unknown packet ID: " + packetWrapper.getID());
-                            break;
-                    }
+                    packetConsumer.queuePacket(packetWrapper, packet.getSocketAddress(), socket.getLocalSocketAddress());
 
                 }
 
@@ -60,10 +48,6 @@ public class UDPKnockPortListener implements Runnable {
 
         }
 
-    }
-
-    public int getPortBound() {
-        return socket.getLocalPort();
     }
 
     public void sendDatagramPacket(DatagramPacket packet) throws IOException {

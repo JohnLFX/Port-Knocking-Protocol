@@ -1,0 +1,148 @@
+package cnt4004.server;
+
+import cnt4004.protocol.KnockPacket;
+import cnt4004.protocol.NoncePacket;
+import cnt4004.protocol.Packet;
+import cnt4004.protocol.ProtocolMap;
+
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+
+public class PacketConsumer implements Runnable {
+
+    private final UDPKnockServer knockServer;
+
+    //TODO Priority queue for knock sequences in progress?
+    private final BlockingQueue<QueuedPacket> queue = new ArrayBlockingQueue<>(100);
+
+    PacketConsumer(UDPKnockServer knockServer) {
+        this.knockServer = knockServer;
+    }
+
+    public void queuePacket(Packet packet, SocketAddress clientAddress, SocketAddress localAddress) {
+        queue.offer(new QueuedPacket(packet, clientAddress, localAddress));
+    }
+
+    @Override
+    public void run() {
+
+        System.out.println("Packet consumer started");
+
+        try {
+
+            //noinspection InfiniteLoopStatement
+            while (true) {
+
+                QueuedPacket queuedPacket = queue.take();
+
+                switch (queuedPacket.packet.getID()) {
+
+                    case 0:
+                        receivedKnockPacket((KnockPacket) queuedPacket.packet, queuedPacket.clientAddress, queuedPacket.localAddress);
+                        break;
+                    case 1:
+                        receivedNoncePacket((NoncePacket) queuedPacket.packet, queuedPacket.clientAddress);
+                        break;
+                    default:
+                        System.out.println("Unknown packet ID: " + queuedPacket.packet.getID());
+                        break;
+                }
+
+            }
+
+        } catch (InterruptedException e) {
+            System.out.println("Packet consumer thread interrupted");
+        }
+
+    }
+
+    private void receivedNoncePacket(NoncePacket packet, SocketAddress clientAddress) {
+
+        if (packet.getNonce() == null) {
+
+            KnockSession session = knockServer.createSession();
+
+            packet.setNonce(session.getNonce());
+
+            try {
+
+                byte[] payload = ProtocolMap.generatePayload(packet);
+
+                knockServer.sendDatagramPacket(new DatagramPacket(payload, payload.length, clientAddress));
+
+                System.out.println("Sending a new nonce for knock session to " + clientAddress);
+
+            } catch (IOException e) {
+                System.out.println("Failed to send Nonce");
+                e.printStackTrace();
+                knockServer.removeSession(session);
+            }
+
+        }
+
+    }
+
+    private void receivedKnockPacket(KnockPacket packet, SocketAddress clientAddress, SocketAddress localAddress) {
+
+        KnockSession session = knockServer.getSession(packet.getNonce());
+
+        if (session != null) {
+
+            int knockedPort = ((InetSocketAddress) localAddress).getPort();
+
+            System.out.println("Got a knock from " + clientAddress + " on local port " + knockedPort);
+            System.out.println("Sequence: " + packet.getSequence());
+            System.out.println("Max Sequence: " + packet.getMaxSequence());
+
+            // TODO ACK Packets
+
+            session.addKnockPacket(packet, knockedPort);
+
+            if (session.sequenceComplete()) {
+
+                List<Integer> receivedSequence = session.getCurrentKnockSequence();
+
+                System.out.println("Final received knock sequence: " + receivedSequence);
+
+                if (receivedSequence.equals(knockServer.getPortSequence())) {
+
+                    System.out.println("Correct knock sequence!");
+                    knockServer.openTimedService();
+
+                } else {
+
+                    System.out.println("Incorrect knock sequence");
+
+                }
+
+                knockServer.removeSession(session);
+
+            }
+
+        } else {
+
+            System.out.println("Possible playback attack: Denied knock packet from already-used nonce: " + packet.getNonce());
+
+        }
+
+    }
+
+}
+
+class QueuedPacket {
+    final Packet packet;
+    final SocketAddress clientAddress;
+    final SocketAddress localAddress;
+
+    QueuedPacket(Packet packet, SocketAddress clientAddress, SocketAddress localAddress) {
+        this.packet = packet;
+        this.clientAddress = clientAddress;
+        this.localAddress = localAddress;
+    }
+
+}

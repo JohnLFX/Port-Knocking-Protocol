@@ -2,54 +2,73 @@ package cnt4004.server;
 
 import cnt4004.protocol.KnockPacket;
 
+import java.io.IOException;
+import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
+import java.util.regex.Pattern;
 
 public class UDPKnockServer {
 
     private final InetAddress bindAddress;
     private final List<Integer> portSequence;
     private final ConcurrentMap<UUID, KnockSession> sessions = new ConcurrentHashMap<>(); // TODO Auto-expiring & limits
-    private ExecutorService portListeners = null;
-    private final PacketHandler packetHandler;
+    private final PacketConsumer packetConsumer;
+    private final String openCommand, closeCommand;
+    private final Timer openTimer;
 
-    public UDPKnockServer(InetAddress bindAddress, List<Integer> portSequence) throws SocketException {
+    private ExecutorService networkExecutorService = null;
+    private UDPKnockPortListener primaryListener = null;
+    private boolean serviceOpen = false;
+
+    public UDPKnockServer(InetAddress bindAddress, List<Integer> portSequence, String openCommand, String closeCommand) throws SocketException {
         this.bindAddress = bindAddress;
         if (portSequence.contains(null))
             throw new IllegalArgumentException("Port sequence cannot contain null elements");
 
         this.portSequence = Collections.unmodifiableList(portSequence);
-        this.packetHandler = new PacketHandler(this);
+        this.packetConsumer = new PacketConsumer(this);
+        this.openCommand = openCommand;
+        this.closeCommand = closeCommand;
+        this.openTimer = new Timer();
         bindPorts();
+    }
+
+    public boolean isBound() {
+        return networkExecutorService != null;
     }
 
     public void bindPorts() throws SocketException {
 
-        if (portListeners != null)
+        if (isBound())
             throw new IllegalStateException("Already bound");
 
-        portListeners = Executors.newFixedThreadPool(portSequence.size());
+        networkExecutorService = Executors.newFixedThreadPool(portSequence.size() + 1);
 
         for (int port : portSequence) {
 
             InetSocketAddress socketAddress = new InetSocketAddress(bindAddress, port);
 
-            portListeners.execute(new UDPKnockPortListener(packetHandler, socketAddress));
+            if (primaryListener == null) {
+
+                primaryListener = new UDPKnockPortListener(packetConsumer, socketAddress);
+                networkExecutorService.execute(primaryListener);
+
+            } else {
+
+                networkExecutorService.execute(new UDPKnockPortListener(packetConsumer, socketAddress));
+
+            }
 
             System.out.println("Listening on " + socketAddress);
 
         }
 
-    }
+        networkExecutorService.submit(packetConsumer);
 
-    public short finalSequenceID() {
-        return (short) portSequence.size();
     }
 
     public List<Integer> getPortSequence() {
@@ -81,6 +100,43 @@ public class UDPKnockServer {
 
     public void removeSession(KnockSession session) {
         sessions.remove(session.getNonce());
+    }
+
+    public void sendDatagramPacket(DatagramPacket packet) throws IOException {
+        if (isBound()) {
+            primaryListener.sendDatagramPacket(packet);
+        }
+    }
+
+    public synchronized void openTimedService() {
+        if (serviceOpen)
+            return;
+
+        try {
+
+            Runtime.getRuntime().exec(openCommand.split(Pattern.quote(" ")));
+
+            serviceOpen = true;
+
+            openTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    closeService();
+                }
+            }, TimeUnit.SECONDS.toMillis(10));
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void closeService() {
+        try {
+            Runtime.getRuntime().exec(closeCommand.split(Pattern.quote(" ")));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        serviceOpen = false;
     }
 
 }

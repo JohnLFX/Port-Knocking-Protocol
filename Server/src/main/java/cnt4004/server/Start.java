@@ -48,7 +48,11 @@ public class Start {
 
         InetAddress bindAddress = InetAddress.getLoopbackAddress(); //TODO Configurable
 
-        ProtocolMap.initializeHMAC(new SecretKeySpec(config.getProperty("shared-secret").getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
+        String secret = config.getProperty("shared-secret");
+
+        System.out.println("Secret: " + secret);
+
+        ProtocolMap.initializeHMAC(new SecretKeySpec(secret.getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
 
         new UDPKnockServer(bindAddress, portKnockSequence);
 

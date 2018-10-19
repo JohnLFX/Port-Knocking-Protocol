@@ -18,7 +18,7 @@ public class ProtocolMap {
             '7', 'S', 'z', 'C', 'L', 'C', 'g', 'c'
     };
 
-    public static final int MAX_BUFFER = 1000; // TODO Determine buffer
+    public static final int MAX_BUFFER = 42; // TODO Determine buffer
 
     private static final Map<Byte, Constructor<? extends Packet>> PACKET_MAP = new HashMap<>();
 
@@ -47,6 +47,7 @@ public class ProtocolMap {
     }
 
     public static void initializeHMAC(SecretKeySpec secretKeySpec) throws InvalidKeyException, NoSuchAlgorithmException {
+
         HMAC = Mac.getInstance(secretKeySpec.getAlgorithm());
         HMAC.init(secretKeySpec);
 

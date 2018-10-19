@@ -1,8 +1,11 @@
 package cnt4004.server;
 
-import java.io.IOException;
+import cnt4004.protocol.ProtocolMap;
+
+import javax.crypto.spec.SecretKeySpec;
 import java.io.InputStream;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,7 +18,7 @@ import java.util.stream.Collectors;
 
 public class Start {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
 
         Properties config = new Properties();
         Path configFile = Paths.get("udpKnock.properties");
@@ -44,6 +47,8 @@ public class Start {
         }
 
         InetAddress bindAddress = InetAddress.getLoopbackAddress(); //TODO Configurable
+
+        ProtocolMap.initializeHMAC(new SecretKeySpec(config.getProperty("shared-secret").getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
 
         new UDPKnockServer(bindAddress, portKnockSequence);
 

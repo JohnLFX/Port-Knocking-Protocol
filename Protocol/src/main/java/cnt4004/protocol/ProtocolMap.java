@@ -1,7 +1,13 @@
 package cnt4004.protocol;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,6 +21,9 @@ public class ProtocolMap {
     public static final int MAX_BUFFER = 1000; // TODO Determine buffer
 
     private static final Map<Byte, Constructor<? extends Packet>> PACKET_MAP = new HashMap<>();
+
+    private static Mac HMAC;
+    private static int HMAC_LENGTH;
 
     static {
         try {
@@ -35,6 +44,86 @@ public class ProtocolMap {
             }
         }
         return null;
+    }
+
+    public static void initializeHMAC(SecretKeySpec secretKeySpec) throws InvalidKeyException, NoSuchAlgorithmException {
+        HMAC = Mac.getInstance(secretKeySpec.getAlgorithm());
+        HMAC.init(secretKeySpec);
+
+        // Calculate HMAC length
+        HMAC_LENGTH = HMAC.doFinal("test".getBytes()).length;
+
+        System.out.println("Initialized MAC: " + secretKeySpec.getAlgorithm() + " with output length of " + HMAC_LENGTH);
+    }
+
+    public static Packet decodePayload(byte[] payload) throws IOException {
+
+        ByteArrayInputStream inBuffer = new ByteArrayInputStream(payload);
+        DataInputStream in = new DataInputStream(inBuffer);
+
+        byte[] receivedMagic = new byte[MAGIC.length];
+        int read = in.read(receivedMagic, 0, MAGIC.length);
+
+        if (read != MAGIC.length || !Arrays.equals(receivedMagic, MAGIC)) {
+            System.out.println("Bad magic packet");
+            return null;
+        }
+
+        byte packetID = in.readByte(); // Packet ID (byte)
+
+        Packet packet = ProtocolMap.createFromID(packetID);
+
+        if (packet == null) {
+            System.out.println("Unknown packet ID: " + packetID);
+            return null;
+        }
+
+        packet.read(in);
+
+        byte[] parsedMAC = new byte[HMAC_LENGTH];
+        in.readFully(parsedMAC);
+
+        HMAC.update(payload, 0, payload.length - parsedMAC.length);
+        byte[] calculatedMAC = HMAC.doFinal();
+
+        if (!Arrays.equals(parsedMAC, calculatedMAC)) {
+            System.out.println("Bad MAC: " + Arrays.toString(parsedMAC) + " | " + Arrays.toString(calculatedMAC));
+            return null;
+        }
+
+        return packet;
+
+    }
+
+    public static byte[] generatePayload(Packet packet) throws IOException {
+
+        ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(outputBuffer);
+
+        out.write(MAGIC);
+        out.writeByte(packet.getID());
+        packet.write(out);
+
+        out.close();
+
+        byte[] packetPayload = outputBuffer.toByteArray();
+
+        byte[] mac = HMAC.doFinal(packetPayload);
+
+        System.out.println(Arrays.toString(mac));
+
+        int payloadLength = packetPayload.length + mac.length;
+
+        if (payloadLength > MAX_BUFFER)
+            throw new IOException("Payload overflows buffer");
+
+        byte[] payload = new byte[payloadLength];
+
+        System.arraycopy(packetPayload, 0, payload, 0, packetPayload.length);
+        System.arraycopy(mac, 0, payload, packetPayload.length, mac.length);
+
+        return payload;
+
     }
 
 }

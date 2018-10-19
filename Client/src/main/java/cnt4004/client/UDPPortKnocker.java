@@ -1,18 +1,17 @@
 package cnt4004.client;
 
 import cnt4004.protocol.NoncePacket;
+import cnt4004.protocol.ProtocolMap;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
+import javax.crypto.spec.SecretKeySpec;
+import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static cnt4004.protocol.ProtocolMap.MAGIC;
-import static cnt4004.protocol.ProtocolMap.MAX_BUFFER;
 
 public class UDPPortKnocker {
 
@@ -39,31 +38,21 @@ public class UDPPortKnocker {
 
         String sharedSecret = args[1];
 
+        sharedSecret = "the-secret";
+
         List<Integer> portSequence = IntStream.range(2, args.length)
                 .mapToObj(i -> Integer.parseInt(args[i]))
                 .collect(Collectors.toList());
 
+        ProtocolMap.initializeHMAC(new SecretKeySpec(sharedSecret.getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
+
         DatagramSocket socket = new DatagramSocket();
 
-        ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream();
-        DataOutputStream out = new DataOutputStream(outputBuffer);
+        byte[] payload = ProtocolMap.generatePayload(new NoncePacket(null));
 
-        NoncePacket noncePacket = new NoncePacket(null);
+        System.out.println(String.format("%040x", new BigInteger(1, payload)));
 
-        out.write(MAGIC);
-        out.writeByte(noncePacket.getID());
-        noncePacket.write(out);
-
-        out.close();
-
-        byte[] buffer = outputBuffer.toByteArray();
-
-        if (buffer.length > MAX_BUFFER) {
-            System.out.println("Buffer is too large");
-            return;
-        }
-
-        socket.send(new DatagramPacket(buffer, buffer.length, serverAddress, portSequence.get(0)));
+        socket.send(new DatagramPacket(payload, payload.length, serverAddress, portSequence.get(0)));
 
         System.out.println("Sent");
 

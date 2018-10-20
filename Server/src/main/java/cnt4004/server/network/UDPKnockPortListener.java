@@ -2,6 +2,8 @@ package cnt4004.server.network;
 
 import cnt4004.protocol.Packet;
 import cnt4004.protocol.ProtocolMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -13,7 +15,7 @@ import static cnt4004.protocol.ProtocolMap.MAX_BUFFER;
 
 public class UDPKnockPortListener implements Runnable {
 
-    //private static final Logger LOGGER = LoggerFactory.getLogger(UDPKnockPortListener.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(UDPKnockPortListener.class);
 
     private DatagramSocket socket;
     private final PacketConsumer packetConsumer;
@@ -45,7 +47,8 @@ public class UDPKnockPortListener implements Runnable {
                 }
 
             } catch (IOException e) {
-                e.printStackTrace();
+                LOGGER.debug("IO Exception upon receiving datagram packet from "
+                        + packet.getSocketAddress() + " on local socket " + socket.getLocalSocketAddress(), e);
             }
 
         }

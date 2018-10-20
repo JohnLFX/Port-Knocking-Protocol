@@ -133,7 +133,7 @@ public class UDPKnockServer {
             }, TimeUnit.SECONDS.toMillis(10));
 
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.warn("Failed to execute the open command", e);
         }
     }
 
@@ -142,7 +142,7 @@ public class UDPKnockServer {
         try {
             Runtime.getRuntime().exec(closeCommand.split(Pattern.quote(" ")));
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.warn("Failed to execute the close command", e);
         }
         serviceOpen = false;
     }

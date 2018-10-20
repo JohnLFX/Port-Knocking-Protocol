@@ -45,7 +45,7 @@ public class ProtocolMap {
             try {
                 return constructor.newInstance();
             } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                e.printStackTrace(); // Exception shouldn't happen anyways
+                LOGGER.error("Failed to create a new Packet object instance for ID " + id, e);
             }
         }
         return null;

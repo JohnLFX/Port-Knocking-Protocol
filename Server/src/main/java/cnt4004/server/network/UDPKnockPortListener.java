@@ -29,6 +29,8 @@ public class UDPKnockPortListener implements Runnable {
     @Override
     public void run() {
 
+        LOGGER.info("Listening on " + socket.getLocalSocketAddress());
+
         byte[] buffer = new byte[MAX_BUFFER];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 

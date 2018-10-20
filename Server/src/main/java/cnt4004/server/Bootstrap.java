@@ -44,13 +44,7 @@ public class Bootstrap {
         List<Integer> portKnockSequence = Arrays.stream(config.getProperty("knock-sequence").split(Pattern.quote(",")))
                 .mapToInt(Integer::valueOf).boxed().collect(Collectors.toList());
 
-        // TODO Allow duplicate ports in future update
-        if (portKnockSequence.size() != portKnockSequence.stream().distinct().count()) {
-            LOGGER.error("Invalid port knock sequence in " + configFile + ": Sequence must contain only unique values");
-            return;
-        }
-
-        InetAddress bindAddress = InetAddress.getLoopbackAddress(); //TODO Configurable
+        InetAddress bindAddress = InetAddress.getByName(config.getProperty("bind-address"));
 
         String secret = config.getProperty("shared-secret");
 
@@ -61,7 +55,9 @@ public class Bootstrap {
         String openCommand = config.getProperty("open-command");
         String closeCommand = config.getProperty("close-command");
 
-        new UDPKnockServer(bindAddress, portKnockSequence, openCommand, closeCommand);
+        int openTimeout = Integer.parseInt(config.getProperty("open-timeout"));
+
+        new UDPKnockServer(bindAddress, portKnockSequence, openCommand, closeCommand, openTimeout);
 
     }
 

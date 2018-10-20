@@ -13,6 +13,7 @@ import java.net.SocketException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class UDPKnockServer {
 
@@ -24,12 +25,14 @@ public class UDPKnockServer {
     private final PacketConsumer packetConsumer;
     private final String openCommand, closeCommand;
     private final Timer openTimer;
+    private final int openTimeout;
 
     private ExecutorService networkExecutorService = null;
     private UDPKnockPortListener primaryListener = null;
     private boolean serviceOpen = false;
 
-    public UDPKnockServer(InetAddress bindAddress, List<Integer> portSequence, String openCommand, String closeCommand) throws SocketException {
+    public UDPKnockServer(InetAddress bindAddress, List<Integer> portSequence,
+                          String openCommand, String closeCommand, int openTimeout) throws SocketException {
         this.bindAddress = bindAddress;
         if (portSequence.contains(null))
             throw new IllegalArgumentException("Port sequence cannot contain null elements");
@@ -39,6 +42,7 @@ public class UDPKnockServer {
         this.openCommand = openCommand;
         this.closeCommand = closeCommand;
         this.openTimer = new Timer();
+        this.openTimeout = openTimeout;
         bindPorts();
     }
 
@@ -51,9 +55,15 @@ public class UDPKnockServer {
         if (isBound())
             throw new IllegalStateException("Already bound");
 
-        networkExecutorService = Executors.newFixedThreadPool(portSequence.size() + 1);
+        List<Integer> distinctPorts = portSequence.stream().distinct().collect(Collectors.toList());
 
-        for (int port : portSequence) {
+        int threadCount = distinctPorts.size() + 1;
+
+        LOGGER.debug("Network thread count: " + threadCount);
+
+        networkExecutorService = Executors.newFixedThreadPool(threadCount);
+
+        for (int port : distinctPorts) {
 
             InetSocketAddress socketAddress = new InetSocketAddress(bindAddress, port);
 
@@ -68,7 +78,7 @@ public class UDPKnockServer {
 
             }
 
-            LOGGER.info("Listening on " + socketAddress);
+            LOGGER.info("Bound on " + socketAddress);
 
         }
 
@@ -130,7 +140,7 @@ public class UDPKnockServer {
                 public void run() {
                     closeService();
                 }
-            }, TimeUnit.SECONDS.toMillis(10));
+            }, TimeUnit.SECONDS.toMillis(openTimeout));
 
         } catch (IOException e) {
             LOGGER.warn("Failed to execute the open command", e);

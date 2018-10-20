@@ -102,7 +102,7 @@ public class PacketConsumer implements Runnable {
 
             LOGGER.debug("Got a knock from " + clientAddress + " on local port " + knockedPort
                     + " | Sequence: " + packet.getSequence()
-                    + " | Max Sequence; " + packet.getMaxSequence());
+                    + " | Max Sequence: " + packet.getMaxSequence());
 
             // TODO ACK Packets
 

@@ -1,6 +1,8 @@
 package cnt4004.server;
 
 import cnt4004.protocol.KnockPacket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -12,6 +14,8 @@ import java.util.concurrent.*;
 import java.util.regex.Pattern;
 
 public class UDPKnockServer {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(UDPKnockServer.class);
 
     private final InetAddress bindAddress;
     private final List<Integer> portSequence;
@@ -63,7 +67,7 @@ public class UDPKnockServer {
 
             }
 
-            System.out.println("Listening on " + socketAddress);
+            LOGGER.info("Listening on " + socketAddress);
 
         }
 
@@ -114,6 +118,8 @@ public class UDPKnockServer {
 
         try {
 
+            LOGGER.debug("Opening timed service!");
+
             Runtime.getRuntime().exec(openCommand.split(Pattern.quote(" ")));
 
             serviceOpen = true;
@@ -131,6 +137,7 @@ public class UDPKnockServer {
     }
 
     private void closeService() {
+        LOGGER.debug("Closing timed service!");
         try {
             Runtime.getRuntime().exec(closeCommand.split(Pattern.quote(" ")));
         } catch (IOException e) {

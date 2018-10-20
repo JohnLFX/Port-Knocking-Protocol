@@ -4,6 +4,8 @@ import cnt4004.protocol.KnockPacket;
 import cnt4004.protocol.NoncePacket;
 import cnt4004.protocol.Packet;
 import cnt4004.protocol.ProtocolMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -14,6 +16,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 public class PacketConsumer implements Runnable {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(PacketConsumer.class);
 
     private final UDPKnockServer knockServer;
 
@@ -31,7 +35,7 @@ public class PacketConsumer implements Runnable {
     @Override
     public void run() {
 
-        System.out.println("Packet consumer started");
+        LOGGER.info("Packet consumer started");
 
         try {
 
@@ -49,14 +53,14 @@ public class PacketConsumer implements Runnable {
                         receivedNoncePacket((NoncePacket) queuedPacket.packet, queuedPacket.clientAddress);
                         break;
                     default:
-                        System.out.println("Unknown packet ID: " + queuedPacket.packet.getID());
+                        LOGGER.debug("Unknown packet ID: " + queuedPacket.packet.getID());
                         break;
                 }
 
             }
 
         } catch (InterruptedException e) {
-            System.out.println("Packet consumer thread interrupted");
+            LOGGER.info("Packet consumer thread interrupted");
         }
 
     }
@@ -75,11 +79,10 @@ public class PacketConsumer implements Runnable {
 
                 knockServer.sendDatagramPacket(new DatagramPacket(payload, payload.length, clientAddress));
 
-                System.out.println("Sending a new nonce for knock session to " + clientAddress);
+                LOGGER.debug("Sending a new nonce for knock session to " + clientAddress);
 
             } catch (IOException e) {
-                System.out.println("Failed to send Nonce");
-                e.printStackTrace();
+                LOGGER.debug("Failed to send Nonce", e);
                 knockServer.removeSession(session);
             }
 
@@ -95,9 +98,9 @@ public class PacketConsumer implements Runnable {
 
             int knockedPort = ((InetSocketAddress) localAddress).getPort();
 
-            System.out.println("Got a knock from " + clientAddress + " on local port " + knockedPort);
-            System.out.println("Sequence: " + packet.getSequence());
-            System.out.println("Max Sequence: " + packet.getMaxSequence());
+            LOGGER.debug("Got a knock from " + clientAddress + " on local port " + knockedPort
+                    + " | Sequence: " + packet.getSequence()
+                    + " | Max Sequence; " + packet.getMaxSequence());
 
             // TODO ACK Packets
 
@@ -107,16 +110,16 @@ public class PacketConsumer implements Runnable {
 
                 List<Integer> receivedSequence = session.getCurrentKnockSequence();
 
-                System.out.println("Final received knock sequence: " + receivedSequence);
+                LOGGER.debug("Final received knock sequence: " + receivedSequence);
 
                 if (receivedSequence.equals(knockServer.getPortSequence())) {
 
-                    System.out.println("Correct knock sequence!");
+                    LOGGER.debug("Correct knock sequence!");
                     knockServer.openTimedService();
 
                 } else {
 
-                    System.out.println("Incorrect knock sequence");
+                    LOGGER.debug("Incorrect knock sequence");
 
                 }
 
@@ -126,7 +129,7 @@ public class PacketConsumer implements Runnable {
 
         } else {
 
-            System.out.println("Possible playback attack: Denied knock packet from already-used nonce: " + packet.getNonce());
+            LOGGER.debug("Possible playback attack: Denied knock packet from already-used nonce: " + packet.getNonce());
 
         }
 

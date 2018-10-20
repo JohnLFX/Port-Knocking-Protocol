@@ -1,5 +1,8 @@
 package cnt4004.protocol;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
@@ -12,6 +15,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ProtocolMap {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ProtocolMap.class);
 
     private static final byte[] MAGIC = new byte[]{
             '7', 'S', 'z', 'C', 'L', 'C', 'g', 'c'
@@ -33,7 +38,7 @@ public class ProtocolMap {
         }
     }
 
-    public static Packet createFromID(byte id) {
+    private static Packet createFromID(byte id) {
         Constructor<? extends Packet> constructor = PACKET_MAP.get(id);
         if (constructor != null) {
             try {
@@ -56,7 +61,7 @@ public class ProtocolMap {
         // Calculate HMAC length
         HMAC_LENGTH = HMAC.doFinal("test".getBytes()).length;
 
-        System.out.println("Initialized MAC: " + secretKeySpec.getAlgorithm() + " with output length of " + HMAC_LENGTH);
+        LOGGER.debug("Initialized MAC: " + secretKeySpec.getAlgorithm() + " with output length of " + HMAC_LENGTH);
 
     }
 
@@ -69,7 +74,7 @@ public class ProtocolMap {
         int read = in.read(receivedMagic, 0, MAGIC.length);
 
         if (read != MAGIC.length || !Arrays.equals(receivedMagic, MAGIC)) {
-            System.out.println("Bad magic packet");
+            LOGGER.debug("Received a bad magic packet");
             return null;
         }
 
@@ -78,7 +83,7 @@ public class ProtocolMap {
         Packet packet = ProtocolMap.createFromID(packetID);
 
         if (packet == null) {
-            System.out.println("Unknown packet ID: " + packetID);
+            LOGGER.debug("Unknown packet ID: " + packetID);
             return null;
         }
 
@@ -93,7 +98,7 @@ public class ProtocolMap {
         byte[] calculatedMAC = HMAC.doFinal();
 
         if (!Arrays.equals(parsedMAC, calculatedMAC)) {
-            System.out.println("Bad MAC: " + Arrays.toString(parsedMAC) + " | " + Arrays.toString(calculatedMAC));
+            LOGGER.debug("Bad MAC: " + Arrays.toString(parsedMAC) + " not equal to " + Arrays.toString(calculatedMAC));
             return null;
         }
 
@@ -115,8 +120,6 @@ public class ProtocolMap {
         byte[] packetPayload = outputBuffer.toByteArray();
 
         byte[] mac = HMAC.doFinal(packetPayload);
-
-        System.out.println(Arrays.toString(mac));
 
         int payloadLength = packetPayload.length + mac.length;
 

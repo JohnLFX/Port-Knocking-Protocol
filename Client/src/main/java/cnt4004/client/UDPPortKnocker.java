@@ -42,8 +42,6 @@ public class UDPPortKnocker {
 
         String sharedSecret = args[1];
 
-        sharedSecret = "the-secret";
-
         List<Integer> portSequence = IntStream.range(2, args.length)
                 .mapToObj(i -> Integer.parseInt(args[i]))
                 .collect(Collectors.toList());

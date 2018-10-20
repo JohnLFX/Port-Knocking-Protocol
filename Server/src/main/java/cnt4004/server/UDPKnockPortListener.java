@@ -13,6 +13,8 @@ import static cnt4004.protocol.ProtocolMap.MAX_BUFFER;
 
 public class UDPKnockPortListener implements Runnable {
 
+    //private static final Logger LOGGER = LoggerFactory.getLogger(UDPKnockPortListener.class);
+
     private DatagramSocket socket;
     private final PacketConsumer packetConsumer;
 

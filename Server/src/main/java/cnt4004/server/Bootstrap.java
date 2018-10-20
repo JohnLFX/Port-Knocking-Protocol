@@ -1,6 +1,8 @@
 package cnt4004.server;
 
 import cnt4004.protocol.ProtocolMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.io.InputStream;
@@ -16,7 +18,9 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public class Start {
+public class Bootstrap {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(Bootstrap.class);
 
     public static void main(String[] args) throws Exception {
 
@@ -25,15 +29,15 @@ public class Start {
 
         if (Files.notExists(configFile)) {
 
-            try (InputStream in = Start.class.getResourceAsStream("/settings.properties")) {
-                System.out.println("Writing settings.properties to " + configFile);
+            try (InputStream in = Bootstrap.class.getResourceAsStream("/settings.properties")) {
+                LOGGER.info("Writing settings.properties to " + configFile);
                 Files.copy(in, configFile);
             }
 
         }
 
         try (InputStream in = Files.newInputStream(configFile, StandardOpenOption.READ)) {
-            System.out.println("Loading settings from " + configFile);
+            LOGGER.info("Loading settings from " + configFile);
             config.load(in);
         }
 
@@ -42,7 +46,7 @@ public class Start {
 
         // TODO Allow duplicate ports in future update
         if (portKnockSequence.size() != portKnockSequence.stream().distinct().count()) {
-            System.out.println("Invalid port knock sequence in " + configFile + ": Sequence must contain only unique values");
+            LOGGER.error("Invalid port knock sequence in " + configFile + ": Sequence must contain only unique values");
             return;
         }
 
@@ -50,11 +54,14 @@ public class Start {
 
         String secret = config.getProperty("shared-secret");
 
-        System.out.println("Secret: " + secret);
+        LOGGER.debug("Shared secret: " + secret);
 
         ProtocolMap.initializeHMAC(new SecretKeySpec(secret.getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
 
-        new UDPKnockServer(bindAddress, portKnockSequence, config.getProperty("open-command"), config.getProperty("close-command"));
+        String openCommand = config.getProperty("open-command");
+        String closeCommand = config.getProperty("close-command");
+
+        new UDPKnockServer(bindAddress, portKnockSequence, openCommand, closeCommand);
 
     }
 

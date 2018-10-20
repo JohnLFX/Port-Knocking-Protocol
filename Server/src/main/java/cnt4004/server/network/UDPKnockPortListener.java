@@ -1,4 +1,4 @@
-package cnt4004.server;
+package cnt4004.server.network;
 
 import cnt4004.protocol.Packet;
 import cnt4004.protocol.ProtocolMap;

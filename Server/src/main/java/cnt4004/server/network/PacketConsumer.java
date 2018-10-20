@@ -1,9 +1,11 @@
-package cnt4004.server;
+package cnt4004.server.network;
 
 import cnt4004.protocol.KnockPacket;
 import cnt4004.protocol.NoncePacket;
 import cnt4004.protocol.Packet;
 import cnt4004.protocol.ProtocolMap;
+import cnt4004.server.KnockSession;
+import cnt4004.server.UDPKnockServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,11 +26,11 @@ public class PacketConsumer implements Runnable {
     //TODO Priority queue for knock sequences in progress?
     private final BlockingQueue<QueuedPacket> queue = new ArrayBlockingQueue<>(100);
 
-    PacketConsumer(UDPKnockServer knockServer) {
+    public PacketConsumer(UDPKnockServer knockServer) {
         this.knockServer = knockServer;
     }
 
-    public void queuePacket(Packet packet, SocketAddress clientAddress, SocketAddress localAddress) {
+    void queuePacket(Packet packet, SocketAddress clientAddress, SocketAddress localAddress) {
         queue.offer(new QueuedPacket(packet, clientAddress, localAddress));
     }
 

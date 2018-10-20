@@ -34,6 +34,7 @@ public class ProtocolMap {
         try {
             PACKET_MAP.put((byte) 0, KnockPacket.class.getDeclaredConstructor());
             PACKET_MAP.put((byte) 1, NoncePacket.class.getDeclaredConstructor());
+            PACKET_MAP.put((byte) 2, AckPacket.class.getDeclaredConstructor());
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);
         }
@@ -67,6 +68,9 @@ public class ProtocolMap {
     }
 
     public static synchronized Packet decodePayload(byte[] payload) throws IOException {
+
+        if (payload == null)
+            return null;
 
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(payload);
         DataInputStream in = new DataInputStream(inBuffer);

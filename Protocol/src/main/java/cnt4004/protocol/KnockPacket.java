@@ -3,6 +3,7 @@ package cnt4004.protocol;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.UUID;
 
 public class KnockPacket implements Packet, Comparable<KnockPacket> {
@@ -51,28 +52,14 @@ public class KnockPacket implements Packet, Comparable<KnockPacket> {
 
     @Override
     public void read(DataInputStream in) throws IOException {
-        long mostSignificant = in.readLong();
-        long leastSignificant = in.readLong();
-
-        if (mostSignificant == Long.MIN_VALUE && leastSignificant == Long.MAX_VALUE) {
-            nonce = null;
-        } else {
-            nonce = new UUID(mostSignificant, leastSignificant);
-        }
+        nonce = StreamUtility.readUUID(in);
         sequence = in.readShort();
         maxSequence = in.readShort();
     }
 
     @Override
     public void write(DataOutputStream out) throws IOException {
-        if (nonce == null) {
-            // TODO Determine sentinel values
-            out.writeLong(Long.MIN_VALUE);
-            out.writeLong(Long.MAX_VALUE);
-        } else {
-            out.writeLong(nonce.getMostSignificantBits());
-            out.writeLong(nonce.getLeastSignificantBits());
-        }
+        StreamUtility.writeUUID(out, nonce);
         out.writeShort(sequence);
         out.writeShort(maxSequence);
     }
@@ -82,6 +69,21 @@ public class KnockPacket implements Packet, Comparable<KnockPacket> {
         // 2 longs is 2 * 8 bytes
         // 1 short = 2 bytes
         return 8 + 8 + 2 + 2;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        KnockPacket packet = (KnockPacket) o;
+        return sequence == packet.sequence &&
+                maxSequence == packet.maxSequence &&
+                Objects.equals(nonce, packet.nonce);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nonce, sequence, maxSequence);
     }
 
     @Override

@@ -1,9 +1,6 @@
 package cnt4004.server.network;
 
-import cnt4004.protocol.KnockPacket;
-import cnt4004.protocol.NoncePacket;
-import cnt4004.protocol.Packet;
-import cnt4004.protocol.ProtocolMap;
+import cnt4004.protocol.*;
 import cnt4004.server.KnockSession;
 import cnt4004.server.UDPKnockServer;
 import org.slf4j.Logger;
@@ -104,9 +101,19 @@ public class PacketConsumer implements Runnable {
                     + " | Sequence: " + packet.getSequence()
                     + " | Max Sequence: " + packet.getMaxSequence());
 
-            // TODO ACK Packets
-
             session.addKnockPacket(packet, knockedPort);
+
+            try {
+
+                byte[] ackPayload = ProtocolMap.generatePayload(new AckPacket(packet.getNonce(), packet.getSequence()));
+                knockServer.sendDatagramPacket(new DatagramPacket(ackPayload, ackPayload.length, clientAddress));
+
+            } catch (IOException e) {
+                LOGGER.error("Failed to send ACK response packet to "
+                        + clientAddress + " for sequence ID " + packet.getSequence(), e);
+                knockServer.removeSession(session);
+                return;
+            }
 
             if (session.sequenceComplete()) {
 

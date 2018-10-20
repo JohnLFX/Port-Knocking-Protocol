@@ -36,12 +36,7 @@ public class KnockSession {
     }
 
     public List<Integer> getCurrentKnockSequence() {
-        List<Integer> list = new ArrayList<>();
-        // TODO Test if ordering is always right, and see knockSequence.values()
-        for (Map.Entry<KnockPacket, Integer> en : knockSequence.entrySet()) {
-            list.add(en.getValue());
-        }
-        return Collections.unmodifiableList(list);
+        return Collections.unmodifiableList(new ArrayList<>(knockSequence.values()));
     }
 
     public UUID getNonce() {

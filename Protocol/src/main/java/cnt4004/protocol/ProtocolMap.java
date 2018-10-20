@@ -30,6 +30,7 @@ public class ProtocolMap {
     private static int HMAC_LENGTH;
 
     static {
+        // Make sure that the byte is unique for each packet
         try {
             PACKET_MAP.put((byte) 0, KnockPacket.class.getDeclaredConstructor());
             PACKET_MAP.put((byte) 1, NoncePacket.class.getDeclaredConstructor());

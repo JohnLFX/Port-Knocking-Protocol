@@ -73,6 +73,15 @@ public class PacketIOTest {
             Assert.assertNotNull("Decoded packet is null", decodedPacket);
             Assert.assertEquals("Decoded packet ID does not match encoded packet ID", packet.getID(), decodedPacket.getID());
 
+            // Check fields
+            for (Field field : packet.getClass().getDeclaredFields()) {
+
+                field.setAccessible(true);
+
+                Assert.assertEquals(field.get(packet), field.get(decodedPacket));
+
+            }
+
             // Reset buffer
             outBuffer.reset();
 

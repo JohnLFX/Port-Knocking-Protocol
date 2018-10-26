@@ -13,6 +13,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class ProtocolMap {
 
@@ -28,6 +29,8 @@ public class ProtocolMap {
 
     private static Mac HMAC;
     private static int HMAC_LENGTH;
+
+    private static final ReentrantLock HMAC_LOCK = new ReentrantLock();
 
     static {
         // Make sure that the byte is unique for each packet
@@ -67,7 +70,7 @@ public class ProtocolMap {
 
     }
 
-    public static synchronized Packet decodePayload(byte[] payload) throws IOException {
+    public static Packet decodePayload(byte[] payload) throws IOException {
 
         if (payload == null)
             return null;
@@ -99,8 +102,18 @@ public class ProtocolMap {
 
         in.close();
 
-        HMAC.update(payload, 0, MAGIC.length + 1 + packet.length());
-        byte[] calculatedMAC = HMAC.doFinal();
+        byte[] calculatedMAC;
+
+        HMAC_LOCK.lock();
+
+        try {
+
+            HMAC.update(payload, 0, MAGIC.length + 1 + packet.length());
+            calculatedMAC = HMAC.doFinal();
+
+        } finally {
+            HMAC_LOCK.unlock();
+        }
 
         if (!Arrays.equals(parsedMAC, calculatedMAC)) {
             LOGGER.debug("Bad MAC: " + Arrays.toString(parsedMAC) + " not equal to " + Arrays.toString(calculatedMAC));
@@ -111,7 +124,7 @@ public class ProtocolMap {
 
     }
 
-    public static synchronized byte[] generatePayload(Packet packet) throws IOException {
+    public static byte[] generatePayload(Packet packet) throws IOException {
 
         ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(outputBuffer);
@@ -123,8 +136,15 @@ public class ProtocolMap {
         out.close();
 
         byte[] packetPayload = outputBuffer.toByteArray();
+        byte[] mac;
 
-        byte[] mac = HMAC.doFinal(packetPayload);
+        HMAC_LOCK.lock();
+
+        try {
+            mac = HMAC.doFinal(packetPayload);
+        } finally {
+            HMAC_LOCK.unlock();
+        }
 
         int payloadLength = packetPayload.length + mac.length;
 

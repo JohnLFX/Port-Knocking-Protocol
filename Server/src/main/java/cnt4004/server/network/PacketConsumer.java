@@ -78,7 +78,7 @@ public class PacketConsumer implements Runnable {
 
                 knockServer.sendDatagramPacket(new DatagramPacket(payload, payload.length, clientAddress));
 
-                LOGGER.debug("Sending a new nonce for knock session to " + clientAddress);
+                LOGGER.debug("Sending a new nonce (" + packet.getNonce() + ") for knock session to " + clientAddress);
 
             } catch (IOException e) {
                 LOGGER.debug("Failed to send Nonce", e);

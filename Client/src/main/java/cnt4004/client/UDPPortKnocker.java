@@ -118,7 +118,7 @@ public class UDPPortKnocker {
 
                 socket.receive(response);
 
-                Packet recvPacket = ProtocolMap.decodePayload(payload);
+                Packet recvPacket = ProtocolMap.decodePayload(recvPayload);
 
                 if (recvPacket != null) {
 

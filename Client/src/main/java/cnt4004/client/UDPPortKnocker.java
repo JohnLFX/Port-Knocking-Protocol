@@ -1,6 +1,9 @@
 package cnt4004.client;
 
-import cnt4004.protocol.*;
+import cnt4004.protocol.KnockPacket;
+import cnt4004.protocol.NoncePacket;
+import cnt4004.protocol.Packet;
+import cnt4004.protocol.ProtocolMap;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
@@ -49,11 +52,10 @@ public class UDPPortKnocker {
 
         System.out.println("Requesting Nonce...");
 
-        Packet response = sendResponsePacket(new NoncePacket(null), socket,
-                new InetSocketAddress(serverAddress, portSequence.get(0)));
+        Packet response = sendResponsePacket(new NoncePacket(null), socket, new InetSocketAddress(serverAddress, portSequence.get(0)));
 
         if (response == null) {
-            System.err.println("Unknown packet received");
+            System.err.println("Failed to request nonce");
             return;
         }
 
@@ -87,14 +89,11 @@ public class UDPPortKnocker {
 
             KnockPacket knockPacket = (KnockPacket) data[0];
 
-            do {
+            System.out.println("Sending knock packet: " + knockPacket.getSequence());
 
-                System.out.println("Sending knock packet: " + knockPacket.getSequence());
+            response = sendResponsePacket(knockPacket, socket, new InetSocketAddress(serverAddress, (int) data[1]));
 
-                response = sendResponsePacket(knockPacket, socket, new InetSocketAddress(serverAddress, (int) data[1]));
-
-            }
-            while (!((response instanceof AckPacket) && ((AckPacket) response).getSequence() == knockPacket.getSequence()));
+            System.out.println("Got response for knock packet: " + response.getID());
 
         }
 
@@ -103,21 +102,41 @@ public class UDPPortKnocker {
     private static Packet sendResponsePacket(Packet packet, DatagramSocket socket, SocketAddress severAddress) throws IOException {
 
         byte[] payload = ProtocolMap.generatePayload(packet);
-        socket.send(new DatagramPacket(payload, payload.length, severAddress));
+        byte[] recvPayload = new byte[ProtocolMap.MAX_BUFFER];
 
-        payload = new byte[ProtocolMap.MAX_BUFFER];
-        DatagramPacket response = new DatagramPacket(payload, payload.length);
+        DatagramPacket sentPacket = new DatagramPacket(payload, payload.length, severAddress);
 
-        try {
+        int ttl = 5;
 
-            socket.receive(response);
+        while (ttl-- > 0) {
 
-        } catch (SocketTimeoutException e) {
-            System.out.println("Timed out for packet ID " + packet.getID());
-            return null;
+            socket.send(sentPacket);
+
+            DatagramPacket response = new DatagramPacket(recvPayload, recvPayload.length);
+
+            try {
+
+                socket.receive(response);
+
+                Packet recvPacket = ProtocolMap.decodePayload(payload);
+
+                if (recvPacket != null) {
+
+                    return recvPacket;
+
+                } else {
+
+                    System.out.println("Received unexpected packet");
+
+                }
+
+            } catch (SocketTimeoutException e) {
+                System.out.println("Timed out for packet ID " + packet.getID() + ", retransmitting ttl = " + ttl);
+            }
+
         }
 
-        return ProtocolMap.decodePayload(payload);
+        throw new SocketTimeoutException("Timed out, TTL expired");
 
     }
 

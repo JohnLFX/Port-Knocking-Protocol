@@ -17,19 +17,42 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class ProtocolMap {
 
+    /**
+     * Logger
+     */
     private static final Logger LOGGER = LoggerFactory.getLogger(ProtocolMap.class);
 
+    /**
+     * Magic header, used for identifying if a packet uses this protocol
+     */
     private static final byte[] MAGIC = new byte[]{
             '7', 'S', 'z', 'C', 'L', 'C', 'g', 'c'
     };
 
+    /**
+     * The expected amount of bytes to read and write for a DatagramSocket
+     */
     public static final int MAX_BUFFER = 100; // TODO Determine buffer
 
+    /**
+     * Packet ID mappings. Used for initializing new packet objects given a packet ID
+     */
     private static final Map<Byte, Constructor<? extends Packet>> PACKET_MAP = new HashMap<>();
 
+    /**
+     * HMAC cryptosystem
+     */
     private static Mac HMAC;
+
+    /**
+     * The amount of bytes produced by HMAC
+     */
     private static int HMAC_LENGTH;
 
+    /**
+     * Encoding and decoding packets support multiple threads. However, the HMAC cryptosystem does not.
+     * Therefore, a ReentrantLock is required in order to prevent concurrency issues
+     */
     private static final ReentrantLock HMAC_LOCK = new ReentrantLock();
 
     static {
@@ -43,6 +66,12 @@ public class ProtocolMap {
         }
     }
 
+    /**
+     * Creates a new Packet object given a packet ID
+     *
+     * @param id The packet ID
+     * @return A new packet object associated with the id, or null if there is no packet object mapped
+     */
     private static Packet createFromID(byte id) {
         Constructor<? extends Packet> constructor = PACKET_MAP.get(id);
         if (constructor != null) {
@@ -55,6 +84,14 @@ public class ProtocolMap {
         return null;
     }
 
+    /**
+     * Initializes the HMAC cryptosystem with a secret key. Initialization can only occur once.
+     *
+     * @param secretKeySpec The secret key
+     * @throws InvalidKeyException      If the key is invalid
+     * @throws NoSuchAlgorithmException If the runtime environment does not support the requested algorithm
+     * @throws IllegalStateException    If the cryptosystem already been initialized
+     */
     public static synchronized void initializeHMAC(SecretKeySpec secretKeySpec) throws InvalidKeyException, NoSuchAlgorithmException {
 
         if (HMAC != null)
@@ -70,6 +107,14 @@ public class ProtocolMap {
 
     }
 
+    /**
+     * Decodes a byte[] payload into a packet object
+     *
+     * @param payload The byte[] payload
+     * @return The packet object read from the payload.
+     * Returns null if the payload is corrupt, authenticity check failed, or integrity check failed
+     * @throws IOException IO Exception decoding the packet
+     */
     public static Packet decodePayload(byte[] payload) throws IOException {
 
         if (payload == null)
@@ -124,6 +169,13 @@ public class ProtocolMap {
 
     }
 
+    /**
+     * Encodes a packet object into a byte[] payload
+     *
+     * @param packet The packet object to encode
+     * @return The byte[] payload
+     * @throws IOException Exception upon writing the payload
+     */
     public static byte[] generatePayload(Packet packet) throws IOException {
 
         ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream();

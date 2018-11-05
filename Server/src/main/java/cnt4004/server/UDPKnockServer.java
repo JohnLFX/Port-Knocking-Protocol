@@ -10,10 +10,17 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.regex.Pattern;
+import java.util.Collections;
+import java.util.List;
+import java.util.Timer;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
+
+import static cnt4004.webserver.WebServerInstance.getWebServer;
 
 public class UDPKnockServer {
 
@@ -127,9 +134,15 @@ public class UDPKnockServer {
         if (serviceOpen)
             return;
 
-        try {
+        LOGGER.debug("Opening timed service!");
 
-            LOGGER.debug("Opening timed service!");
+        try {
+            getWebServer().openPort();
+        } catch (IOException e) {
+            LOGGER.warn("Failed to open web server", e);
+        }
+
+        /*try {
 
             Runtime.getRuntime().exec(openCommand.split(Pattern.quote(" ")));
 
@@ -144,16 +157,23 @@ public class UDPKnockServer {
 
         } catch (IOException e) {
             LOGGER.warn("Failed to execute the open command", e);
-        }
+        }*/
     }
 
     private void closeService() {
         LOGGER.debug("Closing timed service!");
-        try {
+        /*try {
             Runtime.getRuntime().exec(closeCommand.split(Pattern.quote(" ")));
         } catch (IOException e) {
             LOGGER.warn("Failed to execute the close command", e);
+        }*/
+
+        try {
+            getWebServer().closePort();
+        } catch (IOException e) {
+            LOGGER.warn("Failed to close web server", e);
         }
+
         serviceOpen = false;
     }
 

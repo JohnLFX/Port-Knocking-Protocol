@@ -7,24 +7,15 @@ import java.util.Map;
 
 public class WebServer extends NanoHTTPD {
 
-    public WebServer(String hostname, int port) {
+    WebServer(String hostname, int port) {
         super(hostname, port);
     }
 
-    public static void main(String[] args) throws IOException {
-
-        WebServer server = new WebServer("localhost", 8080);
-        server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-
-        System.out.println("Web server is running!");
-
-    }
-
-    public void openTask() throws IOException {
+    public void openPort() throws IOException {
         this.start();
     }
 
-    public void closeTask() {
+    public void closePort() throws IOException {
         this.stop();
     }
 

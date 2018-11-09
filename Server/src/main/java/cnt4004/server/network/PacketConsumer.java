@@ -1,8 +1,8 @@
 package cnt4004.server.network;
 
 import cnt4004.protocol.*;
+import cnt4004.server.KnockServer;
 import cnt4004.server.KnockSession;
-import cnt4004.server.UDPKnockServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,12 +18,12 @@ public class PacketConsumer implements Runnable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PacketConsumer.class);
 
-    private final UDPKnockServer knockServer;
+    private final KnockServer knockServer;
 
     //TODO Priority queue for knock sequences in progress?
     private final BlockingQueue<QueuedPacket> queue = new ArrayBlockingQueue<>(100);
 
-    public PacketConsumer(UDPKnockServer knockServer) {
+    public PacketConsumer(KnockServer knockServer) {
         this.knockServer = knockServer;
     }
 

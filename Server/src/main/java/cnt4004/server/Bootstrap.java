@@ -25,12 +25,12 @@ public class Bootstrap {
     public static void main(String[] args) throws Exception {
 
         Properties config = new Properties();
-        Path configFile = Paths.get("udpKnock.properties");
+        Path configFile = Paths.get("server.properties");
 
         if (Files.notExists(configFile)) {
 
-            try (InputStream in = Bootstrap.class.getResourceAsStream("/settings.properties")) {
-                LOGGER.info("Writing settings.properties to " + configFile);
+            try (InputStream in = Bootstrap.class.getResourceAsStream("/server.properties")) {
+                LOGGER.info("Creating new configuration file: " + configFile);
                 Files.copy(in, configFile);
             }
 
@@ -52,12 +52,9 @@ public class Bootstrap {
 
         ProtocolMap.initializeHMAC(new SecretKeySpec(secret.getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
 
-        String openCommand = config.getProperty("open-command");
-        String closeCommand = config.getProperty("close-command");
-
         int openTimeout = Integer.parseInt(config.getProperty("open-timeout"));
 
-        new UDPKnockServer(bindAddress, portKnockSequence, openCommand, closeCommand, openTimeout);
+        new KnockServer(bindAddress, portKnockSequence, openTimeout);
 
     }
 

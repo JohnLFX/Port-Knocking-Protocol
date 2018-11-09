@@ -2,6 +2,7 @@ package cnt4004.server;
 
 import cnt4004.server.network.PacketConsumer;
 import cnt4004.server.network.UDPKnockPortListener;
+import cnt4004.service.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,17 +21,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-import static cnt4004.webserver.WebServerInstance.getWebServer;
+public class KnockServer {
 
-public class UDPKnockServer {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(UDPKnockServer.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(KnockServer.class);
 
     private final InetAddress bindAddress;
     private final List<Integer> portSequence;
     private final ConcurrentMap<UUID, KnockSession> sessions = new ConcurrentHashMap<>(); // TODO Auto-expiring & limits
     private final PacketConsumer packetConsumer;
-    private final String openCommand, closeCommand;
     private final Timer openTimer;
     private final int openTimeout;
 
@@ -38,19 +36,19 @@ public class UDPKnockServer {
     private UDPKnockPortListener primaryListener = null;
     private boolean serviceOpen = false;
 
-    public UDPKnockServer(InetAddress bindAddress, List<Integer> portSequence,
-                          String openCommand, String closeCommand, int openTimeout) throws SocketException {
+    public KnockServer(InetAddress bindAddress, List<Integer> portSequence, int openTimeout) throws SocketException {
         this.bindAddress = bindAddress;
         if (portSequence.contains(null))
             throw new IllegalArgumentException("Port sequence cannot contain null elements");
 
         this.portSequence = Collections.unmodifiableList(portSequence);
         this.packetConsumer = new PacketConsumer(this);
-        this.openCommand = openCommand;
-        this.closeCommand = closeCommand;
         this.openTimer = new Timer();
         this.openTimeout = openTimeout;
         bindPorts();
+
+        LOGGER.debug("Initializing the service");
+        Service.getInstance().initializeService();
     }
 
     public boolean isBound() {
@@ -136,11 +134,7 @@ public class UDPKnockServer {
 
         LOGGER.debug("Opening timed service!");
 
-        try {
-            getWebServer().openPort();
-        } catch (IOException e) {
-            LOGGER.warn("Failed to open web server", e);
-        }
+        Service.getInstance().openService();
 
         /*try {
 
@@ -168,11 +162,7 @@ public class UDPKnockServer {
             LOGGER.warn("Failed to execute the close command", e);
         }*/
 
-        try {
-            getWebServer().closePort();
-        } catch (IOException e) {
-            LOGGER.warn("Failed to close web server", e);
-        }
+        Service.getInstance().closeService();
 
         serviceOpen = false;
     }

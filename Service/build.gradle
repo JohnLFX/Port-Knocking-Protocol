@@ -8,4 +8,5 @@ sourceCompatibility = 1.8
 
 dependencies {
     compile group: 'org.nanohttpd', name: 'nanohttpd', version: '2.2.+'
+    compile group: 'com.github.terma', name: 'javaniotcpproxy', version: '1.5'
 }

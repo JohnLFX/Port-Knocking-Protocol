@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.KeyPair;
+import java.util.Formatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
@@ -95,6 +96,12 @@ public class UDPPortKnocker {
             int destinationPort = portIterator.next();
 
             LOGGER.info("Sending knock packet (" + knockPacket + ") to " + serverAddress + " on port " + destinationPort);
+
+            Formatter formatter = new Formatter();
+            for (byte b : payload)
+                formatter.format("%02x", b);
+
+            LOGGER.debug("Payload hex: " + formatter.toString());
 
             socket.send(new DatagramPacket(payload, payload.length, serverAddress, destinationPort));
 

@@ -3,17 +3,13 @@ package cnt4004.protocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.locks.ReentrantLock;
+import java.security.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class ProtocolMap {
 
@@ -26,44 +22,59 @@ public class ProtocolMap {
      * Magic header, used for identifying if a packet uses this protocol
      */
     private static final byte[] MAGIC = new byte[]{
-            '7', 'S', 'z', 'C', 'L', 'C', 'g', 'c'
+            'P', 'K', 'P'
     };
 
     /**
      * The expected amount of bytes to read and write for a DatagramSocket
      */
-    public static final int MAX_BUFFER = 100; // TODO Determine buffer
+    public static final int MAX_BUFFER = 700; // TODO Determine buffer
+
+    //TODO Pooling or multi-thread support for signature processing
+    private static Signature SIGNATURE_ALGORITHM;
+    private static int SIGNATURE_LENGTH;
+    private static ConcurrentMap<String, TrustedClient> TRUSTED_CLIENTS;
 
     /**
      * Packet ID mappings. Used for initializing new packet objects given a packet ID
      */
     private static final Map<Byte, Constructor<? extends Packet>> PACKET_MAP = new HashMap<>();
-
-    /**
-     * HMAC cryptosystem
-     */
-    private static Mac HMAC;
-
-    /**
-     * The amount of bytes produced by HMAC
-     */
-    private static int HMAC_LENGTH;
-
-    /**
-     * Encoding and decoding packets support multiple threads. However, the HMAC cryptosystem does not.
-     * Therefore, a ReentrantLock is required in order to prevent concurrency issues
-     */
-    private static final ReentrantLock HMAC_LOCK = new ReentrantLock();
+    private static final Set<Byte> SIGNED_PACKET_IDS = new HashSet<>();
 
     static {
         // Make sure that the byte is unique for each packet
         try {
+
             PACKET_MAP.put((byte) 0, KnockPacket.class.getDeclaredConstructor());
-            PACKET_MAP.put((byte) 1, NoncePacket.class.getDeclaredConstructor());
-            PACKET_MAP.put((byte) 2, AckPacket.class.getDeclaredConstructor());
+            SIGNED_PACKET_IDS.add((byte) 0);
+
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static synchronized void initializeSignature(Set<TrustedClient> trustedClients, PrivateKey privateKey) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+
+        TRUSTED_CLIENTS = new ConcurrentHashMap<>();
+
+        if (trustedClients != null)
+            trustedClients.forEach(client -> TRUSTED_CLIENTS.put(client.getIdentifier(), client));
+
+        LOGGER.debug(TRUSTED_CLIENTS.toString());
+
+        String algorithmName = "SHA256with" + privateKey.getAlgorithm();
+
+        LOGGER.info("Signature algorithm to be used: " + algorithmName);
+
+        SIGNATURE_ALGORITHM = Signature.getInstance(algorithmName);
+        SIGNATURE_ALGORITHM.initSign(privateKey);
+
+        // Perform a test signature to determine byte length
+        // Also checks to see if signing works
+        SIGNATURE_LENGTH = sign("test".getBytes()).length;
+
+        LOGGER.debug("Initialized signature algorithm, signature length is " + SIGNATURE_LENGTH + " bytes");
+
     }
 
     /**
@@ -84,37 +95,6 @@ public class ProtocolMap {
         return null;
     }
 
-    /**
-     * Initializes the HMAC cryptosystem with a secret key. Initialization can only occur once.
-     *
-     * @param secretKeySpec The secret key
-     * @throws InvalidKeyException      If the key is invalid
-     * @throws NoSuchAlgorithmException If the runtime environment does not support the requested algorithm
-     * @throws IllegalStateException    If the cryptosystem already been initialized
-     */
-    public static synchronized void initializeHMAC(SecretKeySpec secretKeySpec) throws InvalidKeyException, NoSuchAlgorithmException {
-
-        if (HMAC != null)
-            throw new IllegalStateException("Already initialized");
-
-        HMAC = Mac.getInstance(secretKeySpec.getAlgorithm());
-        HMAC.init(secretKeySpec);
-
-        // Calculate HMAC length
-        HMAC_LENGTH = HMAC.doFinal("test".getBytes()).length;
-
-        LOGGER.debug("Initialized MAC: " + secretKeySpec.getAlgorithm() + " with output length of " + HMAC_LENGTH);
-
-    }
-
-    /**
-     * Decodes a byte[] payload into a packet object
-     *
-     * @param payload The byte[] payload
-     * @return The packet object read from the payload.
-     * Returns null if the payload is corrupt, authenticity check failed, or integrity check failed
-     * @throws IOException IO Exception decoding the packet
-     */
     public static Packet decodePayload(byte[] payload) throws IOException {
 
         if (payload == null)
@@ -131,38 +111,75 @@ public class ProtocolMap {
             return null;
         }
 
-        byte packetID = in.readByte(); // Packet ID (byte)
-
-        Packet packet = ProtocolMap.createFromID(packetID);
+        Packet packet = createFromID((byte) 0);
 
         if (packet == null) {
-            LOGGER.debug("Unknown packet ID: " + packetID);
+            LOGGER.debug("Failed to create packet object (unknown ID?)");
             return null;
         }
 
         packet.read(in);
 
-        byte[] parsedMAC = new byte[HMAC_LENGTH];
-        in.readFully(parsedMAC);
+        // If the packet is supposed to be signed, check it
+        if (SIGNED_PACKET_IDS.contains(packet.getID())) {
 
-        in.close();
+            // Read signature
 
-        byte[] calculatedMAC;
+            byte[] signature = new byte[SIGNATURE_LENGTH];
+            int result = in.read(signature);
 
-        HMAC_LOCK.lock();
+            if (result != signature.length) {
+                LOGGER.debug("Buffer underflow for signature, discarding packet " +
+                        "(read " + result + ", expected " + SIGNATURE_LENGTH + ")");
+                return null;
+            }
 
-        try {
+            // Fetch associated public key
+            String identifier = ((SignedPacket) packet).getClientIdentifier();
 
-            HMAC.update(payload, 0, MAGIC.length + 1 + packet.length());
-            calculatedMAC = HMAC.doFinal();
+            LOGGER.debug("Received client identifier for signed packet: " + identifier);
 
-        } finally {
-            HMAC_LOCK.unlock();
-        }
+            TrustedClient client = TRUSTED_CLIENTS.get(identifier);
 
-        if (!Arrays.equals(parsedMAC, calculatedMAC)) {
-            LOGGER.debug("Bad MAC: " + Arrays.toString(parsedMAC) + " not equal to " + Arrays.toString(calculatedMAC));
-            return null;
+            // No trusted client for identifier
+            if (client == null) {
+                LOGGER.debug("No public key found for identifier: " + identifier);
+                return null;
+            }
+
+            // Check Nonce
+            // TODO NoncePacket abstract class?
+            if (packet instanceof KnockPacket) {
+
+                int receivedNonce = ((KnockPacket) packet).getNonce();
+
+                if (receivedNonce < client.getCurrentNonce()) {
+
+                    LOGGER.debug("Discarding a possible replay packet");
+                    return null;
+
+                }
+
+            }
+
+            // Verify signature
+            try {
+
+                byte[] packetPayload = new byte[MAGIC.length + packet.length()];
+                System.arraycopy(payload, 0, packetPayload, 0, packetPayload.length);
+
+                if (!verifySignature(client.getPublicKey(), packetPayload, signature)) {
+
+                    LOGGER.debug("Invalid signature, discarding packet");
+                    return null;
+
+                }
+
+            } catch (InvalidKeyException | SignatureException e) {
+                LOGGER.debug("Exception raised during signature verification", e);
+                return null; // Discard packet
+            }
+
         }
 
         return packet;
@@ -176,40 +193,54 @@ public class ProtocolMap {
      * @return The byte[] payload
      * @throws IOException Exception upon writing the payload
      */
-    public static byte[] generatePayload(Packet packet) throws IOException {
+    public static byte[] encodePacket(Packet packet) throws IOException {
 
         ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(outputBuffer);
 
         out.write(MAGIC);
-        out.writeByte(packet.getID());
         packet.write(out);
 
         out.close();
 
         byte[] packetPayload = outputBuffer.toByteArray();
-        byte[] mac;
 
-        HMAC_LOCK.lock();
+        if (SIGNED_PACKET_IDS.contains(packet.getID())) {
 
-        try {
-            mac = HMAC.doFinal(packetPayload);
-        } finally {
-            HMAC_LOCK.unlock();
+            byte[] signature;
+
+            try {
+                signature = sign(packetPayload);
+            } catch (SignatureException e) {
+                throw new IOException(e);
+            }
+
+            if (signature.length != SIGNATURE_LENGTH)
+                throw new IOException("Expected signature length of " + SIGNATURE_LENGTH + ", actual is " + signature.length);
+
+            byte[] payload = new byte[packetPayload.length + signature.length];
+            System.arraycopy(packetPayload, 0, payload, 0, packetPayload.length);
+            System.arraycopy(signature, 0, payload, packetPayload.length, signature.length);
+
+            return payload;
+
+        } else {
+
+            return packetPayload;
+
         }
 
-        int payloadLength = packetPayload.length + mac.length;
+    }
 
-        if (payloadLength > MAX_BUFFER)
-            throw new IOException("Payload overflows buffer (Packet length: " + payloadLength + ", max buffer: " + MAX_BUFFER + ")");
+    private static synchronized boolean verifySignature(PublicKey publicKey, byte[] data, byte[] signature) throws InvalidKeyException, SignatureException {
+        SIGNATURE_ALGORITHM.initVerify(publicKey);
+        SIGNATURE_ALGORITHM.update(data);
+        return SIGNATURE_ALGORITHM.verify(signature);
+    }
 
-        byte[] payload = new byte[payloadLength];
-
-        System.arraycopy(packetPayload, 0, payload, 0, packetPayload.length);
-        System.arraycopy(mac, 0, payload, packetPayload.length, mac.length);
-
-        return payload;
-
+    private static synchronized byte[] sign(byte[] data) throws SignatureException {
+        SIGNATURE_ALGORITHM.update(data);
+        return SIGNATURE_ALGORITHM.sign();
     }
 
 }

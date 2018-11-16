@@ -1,142 +1,106 @@
 package cnt4004.client;
 
 import cnt4004.protocol.KnockPacket;
-import cnt4004.protocol.NoncePacket;
-import cnt4004.protocol.Packet;
 import cnt4004.protocol.ProtocolMap;
+import cnt4004.protocol.RSAIO;
+import cnt4004.protocol.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import javax.crypto.spec.SecretKeySpec;
-import java.io.IOException;
-import java.net.*;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.io.InputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.security.KeyPair;
+import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import java.util.Properties;
 
 public class UDPPortKnocker {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(UDPPortKnocker.class);
+
     public static void main(String[] args) throws Exception {
 
-        // Example: java -jar PortKnock.jar 127.0.0.1 sharedSecret 4000 5000 6000
+        Properties config = new Properties();
+        Path configFile = Paths.get("client.properties");
 
-        if (args.length == 0) {
-            System.out.println("Error: Missing Host Name / IP Address in program arguments");
-            return;
-        }
+        if (Files.notExists(configFile)) {
 
-        if (args.length == 1) {
-            System.out.println("Error: Missing shared secret in program arguments");
-            return;
-        }
-
-        if (args.length == 2) {
-            System.out.println("Error: Missing port sequence in program arguments");
-            return;
-        }
-
-        InetAddress serverAddress = InetAddress.getByName(args[0]);
-
-        String sharedSecret = args[1];
-
-        List<Integer> portSequence = IntStream.range(2, args.length)
-                .mapToObj(i -> Integer.parseInt(args[i]))
-                .collect(Collectors.toList());
-
-        ProtocolMap.initializeHMAC(new SecretKeySpec(sharedSecret.getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
-
-        DatagramSocket socket = new DatagramSocket();
-        socket.setSoTimeout((int) TimeUnit.SECONDS.toMillis(3));
-
-        System.out.println("Requesting Nonce...");
-
-        Packet response = sendResponsePacket(new NoncePacket(null), socket, new InetSocketAddress(serverAddress, portSequence.get(0)));
-
-        if (response == null) {
-            System.err.println("Failed to request nonce");
-            return;
-        }
-
-        if (response.getID() != 1) {
-            System.err.println("Received unexpected response packet for Nonce Request (ID " + response.getID() + ")");
-            return;
-        }
-
-        NoncePacket noncePacket = (NoncePacket) response;
-
-        System.out.println("Using Nonce " + noncePacket.getNonce());
-
-        List<Object[]> payloads = new ArrayList<>(); // Ugly hack
-
-        for (int i = 0; i < portSequence.size(); i++) {
-
-            int port = portSequence.get(i);
-
-            payloads.add(
-                    new Object[]{
-                            new KnockPacket(noncePacket.getNonce(), (short) i, (short) (portSequence.size() - 1)),
-                            port
-                    }
-            );
-
-        }
-
-        Collections.shuffle(payloads);
-
-        for (Object[] data : payloads) {
-
-            KnockPacket knockPacket = (KnockPacket) data[0];
-
-            System.out.println("Sending knock packet: " + knockPacket.getSequence());
-
-            response = sendResponsePacket(knockPacket, socket, new InetSocketAddress(serverAddress, (int) data[1]));
-
-            System.out.println("Got response for knock packet: " + response.getID());
-
-        }
-
-    }
-
-    private static Packet sendResponsePacket(Packet packet, DatagramSocket socket, SocketAddress severAddress) throws IOException {
-
-        byte[] payload = ProtocolMap.generatePayload(packet);
-        byte[] recvPayload = new byte[ProtocolMap.MAX_BUFFER];
-
-        DatagramPacket sentPacket = new DatagramPacket(payload, payload.length, severAddress);
-
-        int ttl = 5;
-
-        while (ttl-- > 0) {
-
-            socket.send(sentPacket);
-
-            DatagramPacket response = new DatagramPacket(recvPayload, recvPayload.length);
-
-            try {
-
-                socket.receive(response);
-
-                Packet recvPacket = ProtocolMap.decodePayload(recvPayload);
-
-                if (recvPacket != null) {
-
-                    return recvPacket;
-
-                } else {
-
-                    System.out.println("Received unexpected packet");
-
-                }
-
-            } catch (SocketTimeoutException e) {
-                System.out.println("Timed out for packet ID " + packet.getID() + ", retransmitting ttl = " + ttl);
+            try (InputStream in = UDPPortKnocker.class.getResourceAsStream("/client.properties")) {
+                LOGGER.info("Creating new configuration file: " + configFile);
+                Files.copy(in, configFile);
             }
 
         }
 
-        throw new SocketTimeoutException("Timed out, TTL expired");
+        try (InputStream in = Files.newInputStream(configFile, StandardOpenOption.READ)) {
+            LOGGER.info("Loading settings from " + configFile);
+            config.load(in);
+        }
+
+        InetAddress serverAddress = InetAddress.getByName(config.getProperty("server-address"));
+
+        String portSecret = config.getProperty("port-secret");
+        int portCount = Integer.parseInt(config.getProperty("ports", "3"));
+
+        String clientIdentifier = config.getProperty("client-identifier");
+
+        LOGGER.info("Client identifier: " + clientIdentifier);
+
+        Path keyPairPath = Paths.get(config.getProperty("client-keypair-path", "client_keypair.txt"));
+        KeyPair clientKeyPair;
+
+        if (Files.notExists(keyPairPath)) {
+
+            LOGGER.info("Generating new keypair for " + keyPairPath);
+
+            clientKeyPair = RSAIO.generateKeyPair();
+            RSAIO.save(keyPairPath, clientKeyPair);
+
+        } else {
+
+            LOGGER.info("Loading keypair from " + keyPairPath);
+            clientKeyPair = RSAIO.load(keyPairPath);
+
+        }
+
+        ProtocolMap.initializeSignature(null, clientKeyPair.getPrivate());
+
+        DatagramSocket socket = new DatagramSocket();
+
+        List<Integer> ports = Utils.getPorts(portSecret, portCount);
+
+        if (ports == null || ports.isEmpty()) {
+            LOGGER.error("No ports generated");
+            return;
+        }
+
+        Iterator<Integer> portIterator = ports.iterator();
+
+        LOGGER.info("Sending knock sequence on ports: " + ports);
+        KnockPacket knockPacket = new KnockPacket(clientIdentifier, 0, (short) 0, (short) (ports.size() - 1));
+
+        short sequenceID = 0;
+
+        while (portIterator.hasNext()) {
+
+            knockPacket.setSequence(sequenceID++);
+            byte[] payload = ProtocolMap.encodePacket(knockPacket);
+
+            int destinationPort = portIterator.next();
+
+            LOGGER.info("Sending knock packet (" + knockPacket + ") to " + serverAddress + " on port " + destinationPort);
+
+            socket.send(new DatagramPacket(payload, payload.length, serverAddress, destinationPort));
+
+        }
+
+        LOGGER.info("Knock sequence complete");
 
     }
 

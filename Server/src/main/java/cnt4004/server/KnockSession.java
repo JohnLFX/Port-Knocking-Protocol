@@ -2,15 +2,16 @@ package cnt4004.server;
 
 import cnt4004.protocol.KnockPacket;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 public class KnockSession {
 
-    private final UUID nonce;
     private final SortedMap<KnockPacket, Integer> knockSequence;
 
     KnockSession() {
-        this.nonce = UUID.randomUUID();
         this.knockSequence = new TreeMap<>();
     }
 
@@ -36,24 +37,7 @@ public class KnockSession {
     }
 
     public List<Integer> getCurrentKnockSequence() {
-        return Collections.unmodifiableList(new ArrayList<>(knockSequence.values()));
-    }
-
-    public UUID getNonce() {
-        return nonce;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        KnockSession session = (KnockSession) o;
-        return Objects.equals(nonce, session.nonce);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(nonce);
+        return new ArrayList<>(knockSequence.values());
     }
 
 }

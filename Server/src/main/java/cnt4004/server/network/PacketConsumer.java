@@ -1,13 +1,12 @@
 package cnt4004.server.network;
 
-import cnt4004.protocol.*;
+import cnt4004.protocol.KnockPacket;
+import cnt4004.protocol.Packet;
 import cnt4004.server.KnockServer;
 import cnt4004.server.KnockSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.List;
@@ -48,9 +47,6 @@ public class PacketConsumer implements Runnable {
                     case 0:
                         receivedKnockPacket((KnockPacket) queuedPacket.packet, queuedPacket.clientAddress, queuedPacket.localAddress);
                         break;
-                    case 1:
-                        receivedNoncePacket((NoncePacket) queuedPacket.packet, queuedPacket.clientAddress);
-                        break;
                     default:
                         LOGGER.debug("Unknown packet ID: " + queuedPacket.packet.getID());
                         break;
@@ -64,86 +60,40 @@ public class PacketConsumer implements Runnable {
 
     }
 
-    private void receivedNoncePacket(NoncePacket packet, SocketAddress clientAddress) {
-
-        if (packet.getNonce() == null) {
-
-            KnockSession session = knockServer.createSession();
-
-            packet.setNonce(session.getNonce());
-
-            try {
-
-                byte[] payload = ProtocolMap.generatePayload(packet);
-
-                knockServer.sendDatagramPacket(new DatagramPacket(payload, payload.length, clientAddress));
-
-                LOGGER.debug("Sending a new nonce (" + packet.getNonce() + ") for knock session to " + clientAddress);
-
-            } catch (IOException e) {
-                LOGGER.debug("Failed to send Nonce", e);
-                knockServer.removeSession(session);
-            }
-
-        }
-
-    }
-
     private void receivedKnockPacket(KnockPacket packet, SocketAddress clientAddress, SocketAddress localAddress) {
 
-        KnockSession session = knockServer.getSession(packet.getNonce());
+        KnockSession session = knockServer.getSession(packet.getClientIdentifier());
 
-        if (session != null) {
+        int knockedPort = ((InetSocketAddress) localAddress).getPort();
 
-            int knockedPort = ((InetSocketAddress) localAddress).getPort();
+        LOGGER.debug("Got a knock from " + clientAddress + " on local port " + knockedPort
+                + " | Sequence: " + packet.getSequence()
+                + " | Max Sequence: " + packet.getMaxSequence());
 
-            LOGGER.debug("Got a knock from " + clientAddress + " on local port " + knockedPort
-                    + " | Sequence: " + packet.getSequence()
-                    + " | Max Sequence: " + packet.getMaxSequence());
+        session.addKnockPacket(packet, knockedPort);
 
-            session.addKnockPacket(packet, knockedPort);
+        if (session.sequenceComplete()) {
 
-            try {
+            List<Integer> receivedSequence = session.getCurrentKnockSequence();
 
-                byte[] ackPayload = ProtocolMap.generatePayload(new AckPacket(packet.getNonce(), packet.getSequence()));
-                knockServer.sendDatagramPacket(new DatagramPacket(ackPayload, ackPayload.length, clientAddress));
+            LOGGER.debug("Final received knock sequence: " + receivedSequence);
 
-            } catch (IOException e) {
-                LOGGER.error("Failed to send ACK response packet to "
-                        + clientAddress + " for sequence ID " + packet.getSequence(), e);
-                knockServer.removeSession(session);
-                return;
-            }
+            if (receivedSequence.equals(knockServer.getPorts())) {
 
-            if (session.sequenceComplete()) {
+                LOGGER.debug("Correct knock sequence!");
+                knockServer.openTimedService();
 
-                List<Integer> receivedSequence = session.getCurrentKnockSequence();
+            } else {
 
-                LOGGER.debug("Final received knock sequence: " + receivedSequence);
-
-                if (receivedSequence.equals(knockServer.getPortSequence())) {
-
-                    LOGGER.debug("Correct knock sequence!");
-                    knockServer.openTimedService();
-
-                } else {
-
-                    LOGGER.debug("Incorrect knock sequence");
-
-                }
-
-                knockServer.removeSession(session);
+                LOGGER.debug("Incorrect knock sequence");
 
             }
 
-        } else {
-
-            LOGGER.debug("Possible playback attack: Denied knock packet from already-used nonce: " + packet.getNonce());
+            knockServer.removeSession(packet.getClientIdentifier());
 
         }
 
     }
-
 }
 
 class QueuedPacket {

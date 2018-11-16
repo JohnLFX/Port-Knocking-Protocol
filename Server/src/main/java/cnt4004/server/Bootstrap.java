@@ -1,22 +1,23 @@
 package cnt4004.server;
 
-import cnt4004.protocol.ProtocolMap;
+import cnt4004.protocol.RSAIO;
+import cnt4004.protocol.TrustedClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.crypto.spec.SecretKeySpec;
+import java.io.BufferedReader;
 import java.io.InputStream;
 import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
-import java.util.List;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.PublicKey;
+import java.util.HashSet;
 import java.util.Properties;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 public class Bootstrap {
 
@@ -41,20 +42,81 @@ public class Bootstrap {
             config.load(in);
         }
 
-        List<Integer> portKnockSequence = Arrays.stream(config.getProperty("knock-sequence").split(Pattern.quote(",")))
-                .mapToInt(Integer::valueOf).boxed().collect(Collectors.toList());
-
         InetAddress bindAddress = InetAddress.getByName(config.getProperty("bind-address"));
 
-        String secret = config.getProperty("shared-secret");
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 
-        LOGGER.debug("Shared secret: " + secret);
+        Set<TrustedClient> trustedClients = new HashSet<>();
 
-        ProtocolMap.initializeHMAC(new SecretKeySpec(secret.getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
+        Path keyPairPath = Paths.get(config.getProperty("server-keypair-path", "server_keypair.txt"));
+        KeyPair serverKeyPair;
 
-        int openTimeout = Integer.parseInt(config.getProperty("open-timeout"));
+        if (Files.notExists(keyPairPath)) {
 
-        new KnockServer(bindAddress, portKnockSequence, openTimeout);
+            LOGGER.info("Generating server key pair for " + keyPairPath);
+
+            serverKeyPair = RSAIO.generateKeyPair();
+            RSAIO.save(keyPairPath, serverKeyPair);
+
+        } else {
+
+            LOGGER.info("Loading server key pair from " + keyPairPath);
+            serverKeyPair = RSAIO.load(keyPairPath);
+
+        }
+
+        Path trustedClientsFile = Paths.get(config.getProperty("trusted-clients-path", "trusted_clients.txt"));
+
+        if (Files.notExists(trustedClientsFile)) {
+
+            LOGGER.info("Creating " + trustedClientsFile);
+            Files.createFile(trustedClientsFile);
+
+        }
+
+        try (BufferedReader br = Files.newBufferedReader(trustedClientsFile)) {
+
+            String line;
+
+            while ((line = br.readLine()) != null) {
+
+                line = line.trim();
+
+                if (line.isEmpty())
+                    continue;
+
+                int delimiterIndex = line.indexOf(' ');
+                int keyDelimiterIndex = line.lastIndexOf(' ');
+
+                String identifier = line.substring(0, delimiterIndex);
+                String encodedPublicKey = line.substring(delimiterIndex + 1, keyDelimiterIndex);
+
+                PublicKey publicKey = RSAIO.decodePublicKey(keyFactory, encodedPublicKey);
+
+                LOGGER.info("Load trusted client profile for " + identifier);
+
+                if (!trustedClients.add(new TrustedClient(identifier, publicKey, 0)))
+                    LOGGER.warn("Not adding duplicate trusted client: " + identifier);
+
+            }
+
+        }
+
+        KnockServer knockServer = new KnockServer(
+                bindAddress,
+                trustedClients,
+                serverKeyPair.getPrivate(),
+                config.getProperty("port-secret"),
+                Integer.parseInt(config.getProperty("ports", "3")),
+                Integer.parseInt(config.getProperty("open-timeout", "10"))
+        );
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+
+            LOGGER.info("Shutting down knock server");
+            knockServer.shutdown();
+
+        }));
 
     }
 

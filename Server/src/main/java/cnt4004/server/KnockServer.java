@@ -1,169 +1,148 @@
 package cnt4004.server;
 
+import cnt4004.protocol.ProtocolMap;
+import cnt4004.protocol.TrustedClient;
+import cnt4004.protocol.Utils;
 import cnt4004.server.network.PacketConsumer;
 import cnt4004.server.network.UDPKnockPortListener;
-import cnt4004.service.Service;
+import cnt4004.service.ServiceManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.SocketException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Timer;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.SignatureException;
+import java.util.*;
+import java.util.concurrent.*;
 
 public class KnockServer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KnockServer.class);
 
     private final InetAddress bindAddress;
-    private final List<Integer> portSequence;
-    private final ConcurrentMap<UUID, KnockSession> sessions = new ConcurrentHashMap<>(); // TODO Auto-expiring & limits
+    private final ConcurrentMap<String, KnockSession> sessions = new ConcurrentHashMap<>(); // TODO Auto-expiring & limits
     private final PacketConsumer packetConsumer;
-    private final Timer openTimer;
-    private final int openTimeout;
+    private final int serviceTimeout;
+    private final String portSecret;
+    private final int portCount;
+
+    private Timer serviceTimer;
+    private int serviceCounter;
 
     private ExecutorService networkExecutorService = null;
-    private UDPKnockPortListener primaryListener = null;
+    private final List<UDPKnockPortListener> portListeners = new ArrayList<>();
     private boolean serviceOpen = false;
 
-    public KnockServer(InetAddress bindAddress, List<Integer> portSequence, int openTimeout) throws SocketException {
-        this.bindAddress = bindAddress;
-        if (portSequence.contains(null))
-            throw new IllegalArgumentException("Port sequence cannot contain null elements");
+    public KnockServer(InetAddress bindAddress,
+                       Set<TrustedClient> trustedClients, PrivateKey serverKey, String portSecret, int portCount,
+                       int openTimeout) throws SocketException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
 
-        this.portSequence = Collections.unmodifiableList(portSequence);
+        this.bindAddress = bindAddress;
         this.packetConsumer = new PacketConsumer(this);
-        this.openTimer = new Timer();
-        this.openTimeout = openTimeout;
+        this.serviceTimeout = openTimeout;
+        this.portSecret = portSecret;
+        this.portCount = portCount;
         bindPorts();
 
         LOGGER.debug("Initializing the service");
-        Service.getInstance().initializeService();
+        ServiceManager.getInstance().initializeService();
+
+        LOGGER.debug("Initializing the protocol module");
+        ProtocolMap.initializeSignature(trustedClients, serverKey);
+
     }
 
     public boolean isBound() {
-        return networkExecutorService != null;
+        return networkExecutorService != null && !portListeners.isEmpty();
     }
 
     public void bindPorts() throws SocketException {
 
-        if (isBound())
-            throw new IllegalStateException("Already bound");
+        if (isBound()) {
 
-        List<Integer> distinctPorts = portSequence.stream().distinct().collect(Collectors.toList());
+            LOGGER.debug("Clearing existing port bindings, shutting down network executor service");
 
-        int threadCount = distinctPorts.size() + 1;
+            networkExecutorService.shutdownNow();
+            portListeners.clear();
+
+        }
+
+        int threadCount = portCount + 1;
 
         LOGGER.debug("Network thread count: " + threadCount);
 
         networkExecutorService = Executors.newFixedThreadPool(threadCount);
+        networkExecutorService.submit(packetConsumer);
 
-        for (int port : distinctPorts) {
+        for (int offset = 0; offset < portCount; offset++) {
 
-            InetSocketAddress socketAddress = new InetSocketAddress(bindAddress, port);
+            UDPKnockPortListener portListener = new UDPKnockPortListener(packetConsumer, bindAddress, portSecret, portCount, offset);
 
-            if (primaryListener == null) {
+            if (portListeners.add(portListener)) {
 
-                primaryListener = new UDPKnockPortListener(packetConsumer, socketAddress);
-                networkExecutorService.execute(primaryListener);
+                networkExecutorService.execute(portListener);
 
             } else {
 
-                networkExecutorService.execute(new UDPKnockPortListener(packetConsumer, socketAddress));
+                throw new SocketException("Failed to register port listener thread");
 
             }
 
-            LOGGER.info("Bound on " + socketAddress);
-
         }
 
-        networkExecutorService.submit(packetConsumer);
-
     }
 
-    public List<Integer> getPortSequence() {
-        return portSequence;
+    void shutdown() {
+        sessions.clear();
+        networkExecutorService.shutdownNow();
+        portListeners.clear();
+        closeService();
+        ServiceManager.getInstance().shutdownService();
     }
 
-    public KnockSession getSession(UUID nonce) {
-        if (nonce == null)
-            return null;
-
-        return sessions.get(nonce);
+    public KnockSession getSession(String identifier) {
+        return sessions.computeIfAbsent(identifier, k -> new KnockSession());
     }
 
-    /**
-     * Creates a new KnockSession
-     *
-     * @return The new KnockSession. Returns null if there is no more room allocated for a new session.
-     */
-    public KnockSession createSession() {
-
-        KnockSession session = new KnockSession();
-
-        // The probability of replacing an existing session is negligible
-        sessions.put(session.getNonce(), session);
-
-        return session;
-
+    public void removeSession(String identifier) {
+        sessions.remove(identifier);
     }
 
-    public void removeSession(KnockSession session) {
-        sessions.remove(session.getNonce());
-    }
-
-    public void sendDatagramPacket(DatagramPacket packet) throws IOException {
-        if (isBound()) {
-            primaryListener.sendDatagramPacket(packet);
-        }
+    public List<Integer> getPorts() {
+        return Utils.getPorts(portSecret, portCount);
     }
 
     public synchronized void openTimedService() {
+
+        serviceCounter += serviceTimeout;
+        LOGGER.debug("Opening timed service! (Counter = " + serviceCounter + ")");
+
         if (serviceOpen)
             return;
 
-        LOGGER.debug("Opening timed service!");
+        serviceOpen = true;
+        ServiceManager.getInstance().openService();
 
-        Service.getInstance().openService();
-
-        /*try {
-
-            Runtime.getRuntime().exec(openCommand.split(Pattern.quote(" ")));
-
-            serviceOpen = true;
-
-            openTimer.schedule(new TimerTask() {
-                @Override
-                public void run() {
+        serviceTimer = new Timer();
+        serviceTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (serviceCounter-- <= 0) {
+                    serviceTimer.cancel();
                     closeService();
                 }
-            }, TimeUnit.SECONDS.toMillis(openTimeout));
+            }
+        }, 0, TimeUnit.SECONDS.toMillis(1));
 
-        } catch (IOException e) {
-            LOGGER.warn("Failed to execute the open command", e);
-        }*/
     }
 
     private void closeService() {
         LOGGER.debug("Closing timed service!");
-        /*try {
-            Runtime.getRuntime().exec(closeCommand.split(Pattern.quote(" ")));
-        } catch (IOException e) {
-            LOGGER.warn("Failed to execute the close command", e);
-        }*/
-
-        Service.getInstance().closeService();
-
+        ServiceManager.getInstance().closeService();
+        serviceCounter = 0;
         serviceOpen = false;
     }
 

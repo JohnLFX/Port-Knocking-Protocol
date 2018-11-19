@@ -22,7 +22,6 @@ public class UDPKnockPortListener implements Runnable {
     private final String portSecret;
     private final int portCount;
     private final int portGenOffset;
-    private int prevTimeout;
 
     public UDPKnockPortListener(PacketConsumer packetConsumer, InetAddress bindAddress, String portSecret, int portCount, int portGenOffset) {
         this.bindAddress = bindAddress;
@@ -38,7 +37,7 @@ public class UDPKnockPortListener implements Runnable {
         byte[] buffer = new byte[MAX_BUFFER];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 
-        //TODO Test case of already bound ports
+        //noinspection InfiniteLoopStatement
         while (true) {
 
             try {
@@ -48,15 +47,17 @@ public class UDPKnockPortListener implements Runnable {
 
                 LOGGER.debug("Listening on " + socket.getLocalSocketAddress());
 
-                int timeout = calculateTimeout();
+                int previousTimeout = -1;
 
                 do {
 
                     try {
 
+                        int timeout = calculateTimeout();
+
                         LOGGER.debug("Socket timeout: " + TimeUnit.MILLISECONDS.toSeconds(timeout) + " seconds");
 
-                        prevTimeout = timeout;
+                        previousTimeout = timeout;
                         socket.setSoTimeout(timeout);
                         socket.receive(packet);
 
@@ -74,12 +75,15 @@ public class UDPKnockPortListener implements Runnable {
                         LOGGER.debug("IO Exception", e);
                     }
 
-                    timeout = calculateTimeout();
-
-                } while (timeout < prevTimeout);
+                } while (calculateTimeout() < previousTimeout);
 
             } catch (SocketException e) {
                 LOGGER.warn("Socket exception", e);
+                try {
+                    Thread.sleep(calculateTimeout());
+                } catch (InterruptedException e1) {
+                    /* Sleep in case the port is taken (assumed case) */
+                }
             }
 
         }

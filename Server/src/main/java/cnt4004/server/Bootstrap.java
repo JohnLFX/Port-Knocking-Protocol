@@ -86,10 +86,9 @@ public class Bootstrap {
                     continue;
 
                 int delimiterIndex = line.indexOf(' ');
-                int keyDelimiterIndex = line.lastIndexOf(' ');
 
                 String identifier = line.substring(0, delimiterIndex);
-                String encodedPublicKey = line.substring(delimiterIndex + 1, keyDelimiterIndex);
+                String encodedPublicKey = line.substring(delimiterIndex + 1);
 
                 PublicKey publicKey = RSAIO.decodePublicKey(keyFactory, encodedPublicKey);
 

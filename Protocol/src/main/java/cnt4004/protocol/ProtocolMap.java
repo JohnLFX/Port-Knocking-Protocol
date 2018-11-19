@@ -7,6 +7,7 @@ import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.security.*;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -22,7 +23,7 @@ public class ProtocolMap {
      * Magic header, used for identifying if a packet uses this protocol
      */
     private static final byte[] MAGIC = new byte[]{
-            'P', 'K', 'P'
+            'P', 'K'
     };
 
     /**
@@ -147,13 +148,12 @@ public class ProtocolMap {
                 return null;
             }
 
-            // Check Nonce
-            // TODO NoncePacket abstract class?
+            // Check for replay attack possibility
             if (packet instanceof KnockPacket) {
 
-                int receivedNonce = ((KnockPacket) packet).getNonce();
+                Instant receivedTimestamp = ((KnockPacket) packet).getTimestamp();
 
-                if (receivedNonce < client.getCurrentNonce()) {
+                if (receivedTimestamp.isAfter(Instant.now().plusSeconds(10))) {
 
                     LOGGER.debug("Discarding a possible replay packet");
                     return null;

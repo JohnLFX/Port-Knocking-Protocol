@@ -95,7 +95,7 @@ public class Bootstrap {
 
                 LOGGER.info("Load trusted client profile for " + identifier);
 
-                if (!trustedClients.add(new TrustedClient(identifier, publicKey, 0)))
+                if (!trustedClients.add(new TrustedClient(identifier, publicKey)))
                     LOGGER.warn("Not adding duplicate trusted client: " + identifier);
 
             }

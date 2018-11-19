@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.KeyPair;
+import java.time.Instant;
 import java.util.Formatter;
 import java.util.Iterator;
 import java.util.List;
@@ -84,13 +85,14 @@ public class UDPPortKnocker {
         Iterator<Integer> portIterator = ports.iterator();
 
         LOGGER.info("Sending knock sequence on ports: " + ports);
-        KnockPacket knockPacket = new KnockPacket(clientIdentifier, 0, (short) 0, (short) (ports.size() - 1));
+        KnockPacket knockPacket = new KnockPacket(clientIdentifier, Instant.now(), (byte) 0, (byte) (ports.size() - 1));
 
-        short sequenceID = 0;
+        byte sequenceID = 0;
 
         while (portIterator.hasNext()) {
 
             knockPacket.setSequence(sequenceID++);
+            knockPacket.setTimestamp(Instant.now());
             byte[] payload = ProtocolMap.encodePacket(knockPacket);
 
             int destinationPort = portIterator.next();

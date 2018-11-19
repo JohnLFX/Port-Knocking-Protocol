@@ -3,43 +3,39 @@ package cnt4004.protocol;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.time.Instant;
 
 public class KnockPacket extends SignedPacket implements Comparable<KnockPacket> {
 
-    private short sequence;
-    private short maxSequence;
-    private int nonce;
+    private byte sequence;
+    private byte maxSequence;
+    private Instant timestamp;
     //TODO Vulnerability: What if mallory modifies the destination port in transport layer?
 
     public KnockPacket() {
+        timestamp = Instant.ofEpochSecond(0);
     }
 
-    public KnockPacket(String clientIdentifier, int nonce, short sequence, short maxSequence) {
+    public KnockPacket(String clientIdentifier, Instant timestamp, byte sequence, byte maxSequence) {
         setClientIdentifier(clientIdentifier);
-        setNonce(nonce);
+        setTimestamp(timestamp);
         setMaxSequence(maxSequence);
         setSequence(sequence);
     }
 
-    public int getNonce() {
-        return nonce;
+    public Instant getTimestamp() {
+        return timestamp;
     }
 
-    public void setNonce(int nonce) {
-        if (nonce > 16777216)
-            throw new IllegalArgumentException("Maximum value for nonce is 16777216 (3 bytes unsigned)");
-
-        if (nonce < 0)
-            throw new IllegalArgumentException("Nonce cannot be negative");
-
-        this.nonce = nonce;
+    public void setTimestamp(Instant timestamp) {
+        this.timestamp = timestamp;
     }
 
-    public short getSequence() {
+    public byte getSequence() {
         return sequence;
     }
 
-    public void setSequence(short sequence) {
+    public void setSequence(byte sequence) {
         if (sequence < 0)
             throw new IllegalArgumentException("Sequence cannot be negative");
 
@@ -53,7 +49,7 @@ public class KnockPacket extends SignedPacket implements Comparable<KnockPacket>
         return maxSequence;
     }
 
-    public void setMaxSequence(short maxSequence) {
+    public void setMaxSequence(byte maxSequence) {
         if (maxSequence < sequence)
             throw new IllegalArgumentException("Max sequence cannot be less than sequence");
 
@@ -67,26 +63,23 @@ public class KnockPacket extends SignedPacket implements Comparable<KnockPacket>
 
     @Override
     public void read(DataInputStream in) throws IOException {
-        nonce = ((in.readByte() & 0xF) << 16) | ((in.readByte() & 0xFF) << 8) | (in.readByte() & 0xFF);
-        sequence = in.readShort();
-        maxSequence = in.readShort();
+        sequence = in.readByte();
+        maxSequence = in.readByte();
+        timestamp = Instant.ofEpochSecond((in.readInt() & 0x00000000FFFFFFFFL));
         super.read(in);
     }
 
     @Override
     public void write(DataOutputStream out) throws IOException {
-        out.writeByte((nonce >> 16) & 0xff);
-        out.writeByte((nonce >> 8) & 0xff);
-        out.writeByte(nonce & 0xff);
-        out.writeShort(sequence);
-        out.writeShort(maxSequence);
+        out.writeByte(sequence);
+        out.writeByte(maxSequence);
+        out.writeInt((int) timestamp.getEpochSecond());
         super.write(out);
     }
 
     @Override
     public int length() {
-        // 1 short = 2 bytes
-        return 2 + 2 + 3 + super.length();
+        return super.length() + 6;
     }
 
     @Override

@@ -7,12 +7,10 @@ public class TrustedClient {
 
     private String identifier;
     private PublicKey publicKey;
-    private int currentNonce;
 
-    public TrustedClient(String identifier, PublicKey publicKey, int currentNonce) {
+    public TrustedClient(String identifier, PublicKey publicKey) {
         this.identifier = identifier;
         this.publicKey = publicKey;
-        this.currentNonce = currentNonce;
     }
 
     public String getIdentifier() {
@@ -29,14 +27,6 @@ public class TrustedClient {
 
     public void setPublicKey(PublicKey publicKey) {
         this.publicKey = publicKey;
-    }
-
-    public int getCurrentNonce() {
-        return currentNonce;
-    }
-
-    public void setCurrentNonce(int currentNonce) {
-        this.currentNonce = currentNonce;
     }
 
     @Override

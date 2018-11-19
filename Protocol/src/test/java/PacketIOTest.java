@@ -48,7 +48,7 @@ public class PacketIOTest {
         //KeyPair serverKeyPair = kpg.generateKeyPair();
         KeyPair clientKeyPair = kpg.generateKeyPair();
 
-        TrustedClient client = new TrustedClient("com1", clientKeyPair.getPublic(), 0);
+        TrustedClient client = new TrustedClient("com1", clientKeyPair.getPublic());
 
         ProtocolMap.initializeSignature(new HashSet<>(Collections.singletonList(client)), clientKeyPair.getPrivate());
 

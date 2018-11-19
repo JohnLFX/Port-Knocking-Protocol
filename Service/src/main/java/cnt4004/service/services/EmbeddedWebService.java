@@ -4,9 +4,9 @@ import cnt4004.service.Service;
 import fi.iki.elonen.NanoHTTPD;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class EmbeddedWebService extends NanoHTTPD implements Service {
 
@@ -40,14 +40,47 @@ public class EmbeddedWebService extends NanoHTTPD implements Service {
 
     @Override
     public Response serve(IHTTPSession session) {
-        String msg = "<html><body><h1>Hello server</h1>\n";
-        Map<String, List<String>> parms = session.getParameters();
-        if (parms.get("username") == null) {
-            msg += "<form action='?' method='get'>\n  <p>Your name: <input type='text' name='username'></p>\n" + "</form>\n";
-        } else {
-            msg += "<p>Hello, " + parms.get("username") + "!</p>";
+
+        switch (session.getUri()) {
+
+            case "/test1.html":
+                return newFixedLengthResponse(Response.Status.OK, MIME_HTML,
+                        "<html><body><h1>This is Test ONE</h1></body></html>");
+            case "/test2.html":
+                return newFixedLengthResponse(Response.Status.OK, MIME_HTML,
+                        "<html><body><h1>This is Test TWO</h1></body></html>");
+            case "/test3.html":
+                return newFixedLengthResponse(Response.Status.OK, MIME_HTML,
+                        "<html><body><h1>This is Test THREE</h1></body></html>");
+            case "/testData.dat":
+                return newChunkedResponse(Response.Status.OK, "application/octet-stream",
+                        new InputStream() {
+
+                            /* Random bytes generator */
+
+                            int counter = (int) Math.pow(10, 8); // 100 Megabytes
+
+                            @Override
+                            public int read() {
+
+                                if (counter-- > 0) {
+
+                                    return 1 + ThreadLocalRandom.current().nextInt(240);
+
+                                } else {
+
+                                    return 0;
+
+                                }
+
+                            }
+                        });
+            default:
+                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_HTML,
+                        "<html><body><h1>404 Not Found</h1></body></html>");
+
         }
-        return newFixedLengthResponse(msg + "</body></html>\n");
+
     }
 
 }

@@ -66,13 +66,8 @@ public class ServiceManager {
     }
 
     public void initializeService() {
-
-        if (service != null)
-            throw new IllegalStateException("Already initialized");
-
         LOGGER.info("Setting up " + serviceType.toString().toLowerCase() + " service");
         service.initialize();
-
     }
 
     public void shutdownService() {

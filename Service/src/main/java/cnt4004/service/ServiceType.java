@@ -2,6 +2,6 @@ package cnt4004.service;
 
 public enum ServiceType {
 
-    EMBEDDED_WEBSERVER, PROXY
+    EMBEDDED_WEBSERVER, TCP_PROXY
 
 }

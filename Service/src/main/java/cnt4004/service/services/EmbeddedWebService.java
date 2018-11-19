@@ -4,13 +4,14 @@ import cnt4004.service.Service;
 import fi.iki.elonen.NanoHTTPD;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 
 public class EmbeddedWebService extends NanoHTTPD implements Service {
 
-    public EmbeddedWebService() {
-        super("127.0.0.1", 8080);
+    public EmbeddedWebService(InetSocketAddress bindAddress) {
+        super(bindAddress.getHostName(), bindAddress.getPort());
     }
 
     @Override

@@ -1,11 +1,13 @@
 package cnt4004.service;
 
 import cnt4004.service.services.EmbeddedWebService;
+import cnt4004.service.services.TCPProxyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -47,13 +49,17 @@ public class ServiceManager {
 
         }
 
+        InetSocketAddress bindAddress = new InetSocketAddress(config.getProperty("service-bind"), Integer.parseInt(config.getProperty("service-port")));
+
         if (Boolean.valueOf(config.getProperty("use-embedded-webserver", "true"))) {
 
             this.serviceType = ServiceType.EMBEDDED_WEBSERVER;
+            this.service = new EmbeddedWebService(bindAddress);
 
         } else {
 
-            this.serviceType = ServiceType.PROXY;
+            this.serviceType = ServiceType.TCP_PROXY;
+            this.service = new TCPProxyService(bindAddress, config.getProperty("proxy-address"), Integer.parseInt(config.getProperty("proxy-port")));
 
         }
 
@@ -61,26 +67,11 @@ public class ServiceManager {
 
     public void initializeService() {
 
-        switch (serviceType) {
+        if (service != null)
+            throw new IllegalStateException("Already initialized");
 
-            case EMBEDDED_WEBSERVER:
-                service = new EmbeddedWebService();
-                break;
-            default:
-                service = null;
-                break;
-        }
-
-        if (service != null) {
-
-            LOGGER.info("Setting up " + serviceType.toString().toLowerCase() + " service");
-            service.initialize();
-
-        } else {
-
-            LOGGER.warn("No service implementation found for  service type " + serviceType);
-
-        }
+        LOGGER.info("Setting up " + serviceType.toString().toLowerCase() + " service");
+        service.initialize();
 
     }
 

@@ -2,8 +2,6 @@ import cnt4004.protocol.KnockPacket;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.time.Instant;
-
 public class TestKnockPacket {
 
     private KnockPacket knockPacket;
@@ -14,7 +12,7 @@ public class TestKnockPacket {
         knockPacket.setClientIdentifier("com1");
         knockPacket.setMaxSequence((byte) 1);
         knockPacket.setSequence((byte) 0);
-        knockPacket.setTimestamp(Instant.now());
+        knockPacket.setNonce(0);
     }
 
     @Test(expected = IllegalArgumentException.class)

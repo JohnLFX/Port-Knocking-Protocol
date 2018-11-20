@@ -17,6 +17,7 @@ import java.security.PrivateKey;
 import java.security.SignatureException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class KnockServer {
 
@@ -34,7 +35,7 @@ public class KnockServer {
 
     private ExecutorService networkExecutorService = null;
     private final List<UDPKnockPortListener> portListeners = new ArrayList<>();
-    private boolean serviceOpen = false;
+    private final AtomicBoolean serviceOpen = new AtomicBoolean(false);
 
     public KnockServer(InetAddress bindAddress,
                        Set<TrustedClient> trustedClients, PrivateKey serverKey, String portSecret, int portCount,
@@ -115,35 +116,36 @@ public class KnockServer {
         return Utils.getPorts(portSecret, portCount);
     }
 
-    public synchronized void openTimedService() {
+    public void openTimedService() {
 
         serviceCounter += serviceTimeout;
         LOGGER.debug("Opening timed service! (Counter = " + serviceCounter + ")");
 
-        if (serviceOpen)
-            return;
+        if (serviceOpen.compareAndSet(false, true)) {
 
-        serviceOpen = true;
-        ServiceManager.getInstance().openService();
+            ServiceManager.getInstance().openService();
 
-        serviceTimer = new Timer();
-        serviceTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                if (serviceCounter-- <= 0) {
-                    serviceTimer.cancel();
-                    closeService();
+            serviceTimer = new Timer();
+            serviceTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    if (serviceCounter-- <= 0) {
+                        serviceTimer.cancel();
+                        closeService();
+                    }
                 }
-            }
-        }, 0, TimeUnit.SECONDS.toMillis(1));
+            }, 0, TimeUnit.SECONDS.toMillis(1));
+
+        }
 
     }
 
     private void closeService() {
-        LOGGER.debug("Closing timed service!");
-        ServiceManager.getInstance().closeService();
-        serviceCounter = 0;
-        serviceOpen = false;
+        if (serviceOpen.compareAndSet(true, false)) {
+            LOGGER.debug("Closing timed service!");
+            ServiceManager.getInstance().closeService();
+            serviceCounter = 0;
+        }
     }
 
 }

@@ -7,10 +7,23 @@ public class TrustedClient {
 
     private String identifier;
     private PublicKey publicKey;
+    private long largestNonceReceived;
 
-    public TrustedClient(String identifier, PublicKey publicKey) {
+    public TrustedClient(String identifier, PublicKey publicKey, long largestNonceReceived) {
         this.identifier = identifier;
         this.publicKey = publicKey;
+        this.largestNonceReceived = largestNonceReceived;
+    }
+
+    public long getLargestNonceReceived() {
+        return largestNonceReceived;
+    }
+
+    public void setLargestNonceReceived(long largestNonceReceived) {
+        if (largestNonceReceived < 0)
+            throw new IllegalArgumentException("Nonce cannot be negative");
+
+        this.largestNonceReceived = largestNonceReceived;
     }
 
     public String getIdentifier() {

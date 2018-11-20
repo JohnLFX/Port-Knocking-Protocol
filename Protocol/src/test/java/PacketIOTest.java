@@ -1,6 +1,6 @@
+import cnt4004.protocol.AuthenticatedPacket;
 import cnt4004.protocol.Packet;
 import cnt4004.protocol.ProtocolMap;
-import cnt4004.protocol.SignedPacket;
 import cnt4004.protocol.TrustedClient;
 import org.junit.Assert;
 import org.junit.Test;
@@ -48,7 +48,7 @@ public class PacketIOTest {
         //KeyPair serverKeyPair = kpg.generateKeyPair();
         KeyPair clientKeyPair = kpg.generateKeyPair();
 
-        TrustedClient client = new TrustedClient("com1", clientKeyPair.getPublic());
+        TrustedClient client = new TrustedClient("com1", clientKeyPair.getPublic(), 0);
 
         ProtocolMap.initializeSignature(new HashSet<>(Collections.singletonList(client)), clientKeyPair.getPrivate());
 
@@ -57,8 +57,11 @@ public class PacketIOTest {
 
         for (Packet packet : packets) {
 
-            if (packet instanceof SignedPacket)
-                ((SignedPacket) packet).setClientIdentifier(client.getIdentifier());
+            if (packet instanceof AuthenticatedPacket) {
+                AuthenticatedPacket authenticatedPacket = (AuthenticatedPacket) packet;
+                authenticatedPacket.setClientIdentifier(client.getIdentifier());
+                authenticatedPacket.setNonce(client.getLargestNonceReceived() + 1);
+            }
 
             int before = outStream.size();
 

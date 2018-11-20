@@ -3,32 +3,21 @@ package cnt4004.protocol;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.time.Instant;
 
-public class KnockPacket extends SignedPacket implements Comparable<KnockPacket> {
+public class KnockPacket extends AuthenticatedPacket implements Comparable<KnockPacket> {
 
     private byte sequence;
     private byte maxSequence;
-    private Instant timestamp;
     //TODO Vulnerability: What if mallory modifies the destination port in transport layer?
 
     public KnockPacket() {
-        timestamp = Instant.ofEpochSecond(0);
     }
 
-    public KnockPacket(String clientIdentifier, Instant timestamp, byte sequence, byte maxSequence) {
-        setClientIdentifier(clientIdentifier);
-        setTimestamp(timestamp);
+    public KnockPacket(String identifier, long nonce, byte sequence, byte maxSequence) {
+        setClientIdentifier(identifier);
+        setNonce(nonce);
         setMaxSequence(maxSequence);
         setSequence(sequence);
-    }
-
-    public Instant getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(Instant timestamp) {
-        this.timestamp = timestamp;
     }
 
     public byte getSequence() {
@@ -65,7 +54,6 @@ public class KnockPacket extends SignedPacket implements Comparable<KnockPacket>
     public void read(DataInputStream in) throws IOException {
         sequence = in.readByte();
         maxSequence = in.readByte();
-        timestamp = Instant.ofEpochSecond((in.readInt() & 0x00000000FFFFFFFFL));
         super.read(in);
     }
 
@@ -73,17 +61,26 @@ public class KnockPacket extends SignedPacket implements Comparable<KnockPacket>
     public void write(DataOutputStream out) throws IOException {
         out.writeByte(sequence);
         out.writeByte(maxSequence);
-        out.writeInt((int) timestamp.getEpochSecond());
         super.write(out);
     }
 
     @Override
     public int length() {
-        return super.length() + 6;
+        return super.length() + 2;
     }
 
     @Override
     public int compareTo(KnockPacket o) {
         return Short.compare(sequence, o.sequence);
+    }
+
+    @Override
+    public String toString() {
+        return "KnockPacket{" +
+                "sequence=" + sequence +
+                ", maxSequence=" + maxSequence +
+                ", identifier=" + getClientIdentifier() +
+                ", timestamp=" + getTimestamp().getEpochSecond() +
+                '}';
     }
 }

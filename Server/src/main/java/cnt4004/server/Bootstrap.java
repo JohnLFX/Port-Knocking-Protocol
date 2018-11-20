@@ -17,6 +17,7 @@ import java.security.KeyPair;
 import java.security.PublicKey;
 import java.util.HashSet;
 import java.util.Properties;
+import java.util.Scanner;
 import java.util.Set;
 
 public class Bootstrap {
@@ -74,6 +75,7 @@ public class Bootstrap {
 
         }
 
+
         try (BufferedReader br = Files.newBufferedReader(trustedClientsFile)) {
 
             String line;
@@ -86,15 +88,17 @@ public class Bootstrap {
                     continue;
 
                 int delimiterIndex = line.indexOf(' ');
+                int keyDelimiterIndex = line.lastIndexOf(' ');
 
                 String identifier = line.substring(0, delimiterIndex);
-                String encodedPublicKey = line.substring(delimiterIndex + 1);
+                String encodedPublicKey = line.substring(delimiterIndex + 1, keyDelimiterIndex);
+                long nonce = Long.parseLong(line.substring(keyDelimiterIndex + 1));
 
                 PublicKey publicKey = RSAIO.decodePublicKey(keyFactory, encodedPublicKey);
 
-                LOGGER.info("Load trusted client profile for " + identifier);
+                LOGGER.info("Load trusted client profile for " + identifier + ", max nonce = " + nonce);
 
-                if (!trustedClients.add(new TrustedClient(identifier, publicKey)))
+                if (!trustedClients.add(new TrustedClient(identifier, publicKey, nonce)))
                     LOGGER.warn("Not adding duplicate trusted client: " + identifier);
 
             }
@@ -110,12 +114,35 @@ public class Bootstrap {
                 Integer.parseInt(config.getProperty("open-timeout", "10"))
         );
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        Scanner scanner = new Scanner(System.in);
 
-            LOGGER.info("Shutting down knock server");
-            knockServer.shutdown();
+        boolean readingConsole = true;
 
-        }));
+        while (readingConsole && scanner.hasNextLine()) {
+
+            String command = scanner.nextLine().toLowerCase();
+
+            switch (command) {
+
+                case "end":
+                case "stop":
+                case "quit":
+                    readingConsole = false;
+                    break;
+                default:
+                    LOGGER.info("Unknown command: \"" + command + "\"");
+                    break;
+            }
+
+        }
+
+        scanner.close();
+        LOGGER.info("Shutting down knock server");
+
+        knockServer.shutdown();
+
+        LOGGER.info("Goodbye");
+        System.exit(0);
 
     }
 

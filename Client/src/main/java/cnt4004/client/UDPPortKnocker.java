@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -82,16 +83,15 @@ public class UDPPortKnocker {
             return;
         }
 
+        long nonce = Long.parseLong(config.getProperty("nonce", "0"));
+
         Iterator<Integer> portIterator = ports.iterator();
 
         LOGGER.info("Sending knock sequence on ports: " + ports);
-        KnockPacket knockPacket = new KnockPacket(clientIdentifier, Instant.now(), (byte) 0, (byte) (ports.size() - 1));
-
-        byte sequenceID = 0;
+        KnockPacket knockPacket = new KnockPacket(clientIdentifier, nonce, (byte) 0, (byte) (ports.size() - 1));
 
         while (portIterator.hasNext()) {
 
-            knockPacket.setSequence(sequenceID++);
             knockPacket.setTimestamp(Instant.now());
             byte[] payload = ProtocolMap.encodePacket(knockPacket);
 
@@ -107,9 +107,25 @@ public class UDPPortKnocker {
 
             socket.send(new DatagramPacket(payload, payload.length, serverAddress, destinationPort));
 
+            if (knockPacket.getSequence() < knockPacket.getMaxSequence()) {
+
+                knockPacket.setNonce(knockPacket.getNonce() + 1);
+                knockPacket.setSequence((byte) (knockPacket.getSequence() + 1));
+
+            }
+
         }
 
         LOGGER.info("Knock sequence complete");
+
+        config.setProperty("nonce", String.valueOf((nonce + ports.size())));
+
+        LOGGER.info("Updating nonce in configuration to " + config.getProperty("nonce"));
+
+        // Update the nonce in the configuration
+        try (OutputStream out = Files.newOutputStream(configFile)) {
+            config.store(out, null);
+        }
 
     }
 

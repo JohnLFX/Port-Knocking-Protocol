@@ -5,11 +5,10 @@ import org.junit.Test;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.time.Instant;
 import java.util.Collections;
 import java.util.HashSet;
 
-public class SignedPacketEncodingTest {
+public class AuthenticatedPacketEncodingTest {
 
     @Test
     public void test() throws Exception {
@@ -20,9 +19,9 @@ public class SignedPacketEncodingTest {
         KeyPair serverKeyPair = kpg.generateKeyPair();
         KeyPair clientKeyPair = kpg.generateKeyPair();
 
-        TrustedClient client = new TrustedClient("com1", clientKeyPair.getPublic());
+        TrustedClient client = new TrustedClient("com1", clientKeyPair.getPublic(), 0);
 
-        KnockPacket packet = new KnockPacket(client.getIdentifier(), Instant.now(), (byte) 0, (byte) 0);
+        KnockPacket packet = new KnockPacket(client.getIdentifier(), 0, (byte) 0, (byte) 0);
 
         // Encode it with client stuff
         ProtocolMap.initializeSignature(null, clientKeyPair.getPrivate());

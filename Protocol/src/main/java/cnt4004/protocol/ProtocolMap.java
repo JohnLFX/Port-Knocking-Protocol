@@ -7,8 +7,10 @@ import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.security.*;
-import java.time.Instant;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -40,14 +42,12 @@ public class ProtocolMap {
      * Packet ID mappings. Used for initializing new packet objects given a packet ID
      */
     private static final Map<Byte, Constructor<? extends Packet>> PACKET_MAP = new HashMap<>();
-    private static final Set<Byte> SIGNED_PACKET_IDS = new HashSet<>();
 
     static {
         // Make sure that the byte is unique for each packet
         try {
 
             PACKET_MAP.put((byte) 0, KnockPacket.class.getDeclaredConstructor());
-            SIGNED_PACKET_IDS.add((byte) 0);
 
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);
@@ -121,8 +121,31 @@ public class ProtocolMap {
 
         packet.read(in);
 
-        // If the packet is supposed to be signed, check it
-        if (SIGNED_PACKET_IDS.contains(packet.getID())) {
+        // If the packet is supposed to be authenticated, check it
+        if (packet instanceof AuthenticatedPacket) {
+
+            AuthenticatedPacket authenticatedPacket = (AuthenticatedPacket) packet;
+
+            // Identify the client
+            String identifier = authenticatedPacket.getClientIdentifier();
+
+            LOGGER.debug("Received client identifier for authenticated packet: " + identifier);
+
+            TrustedClient client = TRUSTED_CLIENTS.get(identifier);
+
+            // No trusted client for identifier
+            if (client == null) {
+                LOGGER.debug("No public key found for identifier (client not trusted): " + identifier);
+                return null;
+            }
+
+            // Check for replay attack possibility
+            if (authenticatedPacket.getNonce() <= client.getLargestNonceReceived()) {
+                LOGGER.debug("Denied a possible replayed packet (or out-of-order)." +
+                        " Received nonce vs. largest nonce received: "
+                        + authenticatedPacket.getNonce() + " - " + client.getLargestNonceReceived());
+                return null;
+            }
 
             // Read signature
 
@@ -133,33 +156,6 @@ public class ProtocolMap {
                 LOGGER.debug("Buffer underflow for signature, discarding packet " +
                         "(read " + result + ", expected " + SIGNATURE_LENGTH + ")");
                 return null;
-            }
-
-            // Fetch associated public key
-            String identifier = ((SignedPacket) packet).getClientIdentifier();
-
-            LOGGER.debug("Received client identifier for signed packet: " + identifier);
-
-            TrustedClient client = TRUSTED_CLIENTS.get(identifier);
-
-            // No trusted client for identifier
-            if (client == null) {
-                LOGGER.debug("No public key found for identifier: " + identifier);
-                return null;
-            }
-
-            // Check for replay attack possibility
-            if (packet instanceof KnockPacket) {
-
-                Instant receivedTimestamp = ((KnockPacket) packet).getTimestamp();
-
-                if (receivedTimestamp.isAfter(Instant.now().plusSeconds(10))) {
-
-                    LOGGER.debug("Discarding a possible replay packet");
-                    return null;
-
-                }
-
             }
 
             // Verify signature
@@ -179,6 +175,13 @@ public class ProtocolMap {
                 LOGGER.debug("Exception raised during signature verification", e);
                 return null; // Discard packet
             }
+
+            // Signature verified, update the max nonce
+            client.setLargestNonceReceived(authenticatedPacket.getNonce());
+
+            LOGGER.debug("Updating maximum nonce received for " + identifier + " to " + client.getLargestNonceReceived());
+
+            //TODO Save to trusted clients flat file, IO thread perhaps
 
         }
 
@@ -205,9 +208,11 @@ public class ProtocolMap {
 
         byte[] packetPayload = outputBuffer.toByteArray();
 
-        if (SIGNED_PACKET_IDS.contains(packet.getID())) {
+        if (packet instanceof AuthenticatedPacket) {
 
             byte[] signature;
+
+            //TODO Reduce packet size by using HMAC with shared secret instead of RSA key-signing
 
             try {
                 signature = sign(packetPayload);

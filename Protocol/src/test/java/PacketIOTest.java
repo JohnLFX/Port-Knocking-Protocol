@@ -5,7 +5,6 @@ import cnt4004.protocol.TrustedClient;
 import org.junit.Assert;
 import org.junit.Test;
 
-import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -13,7 +12,6 @@ import java.io.DataOutputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class PacketIOTest {
@@ -42,9 +40,7 @@ public class PacketIOTest {
 
         }
 
-        SecretKeySpec sharedSecret = new SecretKeySpec("testKey".getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-
-        TrustedClient client = new TrustedClient("com1", sharedSecret, 0);
+        TrustedClient client = new TrustedClient("com1", "testKey", 0);
 
         ProtocolMap.initializeHMAC(new HashSet<>(Collections.singletonList(client)));
 

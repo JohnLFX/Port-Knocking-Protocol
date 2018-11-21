@@ -62,6 +62,12 @@ public class PacketConsumer implements Runnable {
 
     private void receivedKnockPacket(KnockPacket packet, SocketAddress clientAddress, SocketAddress localAddress) {
 
+        if (packet.getMaxSequence() > (knockServer.getPortCount() - 1)) {
+            LOGGER.debug("Discarding knock packet due to the maximum sequence number (" + packet.getMaxSequence()
+                    + ") being greater than or equal to the port count (" + knockServer.getPortCount() + ")");
+            return;
+        }
+
         KnockSession session = knockServer.getSession(packet.getClientIdentifier());
 
         int knockedPort = ((InetSocketAddress) localAddress).getPort();

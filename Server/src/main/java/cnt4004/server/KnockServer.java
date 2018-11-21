@@ -112,6 +112,10 @@ public class KnockServer {
         return Utils.getPorts(portSecret, portCount);
     }
 
+    public int getPortCount() {
+        return portCount;
+    }
+
     public void openTimedService() {
 
         serviceCounter += serviceTimeout;

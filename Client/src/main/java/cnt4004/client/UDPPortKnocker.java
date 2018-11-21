@@ -2,7 +2,7 @@ package cnt4004.client;
 
 import cnt4004.protocol.KnockPacket;
 import cnt4004.protocol.ProtocolMap;
-import cnt4004.protocol.RSAIO;
+import cnt4004.protocol.TrustedClient;
 import cnt4004.protocol.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,12 +16,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.security.KeyPair;
 import java.time.Instant;
-import java.util.Formatter;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 public class UDPPortKnocker {
 
@@ -52,27 +48,15 @@ public class UDPPortKnocker {
         int portCount = Integer.parseInt(config.getProperty("ports", "3"));
 
         String clientIdentifier = config.getProperty("client-identifier");
+        String sharedSecret = config.getProperty("client-shared-secret");
+        long nonce = Long.parseLong(config.getProperty("nonce", "0"));
+
+        if (sharedSecret == null || sharedSecret.isEmpty())
+            throw new NullPointerException("No client-shared-secret provided in " + configFile);
 
         LOGGER.info("Client identifier: " + clientIdentifier);
 
-        Path keyPairPath = Paths.get(config.getProperty("client-keypair-path", "client_keypair.txt"));
-        KeyPair clientKeyPair;
-
-        if (Files.notExists(keyPairPath)) {
-
-            LOGGER.info("Generating new keypair for " + keyPairPath);
-
-            clientKeyPair = RSAIO.generateKeyPair();
-            RSAIO.save(keyPairPath, clientKeyPair);
-
-        } else {
-
-            LOGGER.info("Loading keypair from " + keyPairPath);
-            clientKeyPair = RSAIO.load(keyPairPath);
-
-        }
-
-        ProtocolMap.initializeSignature(null, clientKeyPair.getPrivate());
+        ProtocolMap.initializeHMAC(new HashSet<>(Collections.singletonList(new TrustedClient(clientIdentifier, sharedSecret, nonce))));
 
         DatagramSocket socket = new DatagramSocket();
 
@@ -82,8 +66,6 @@ public class UDPPortKnocker {
             LOGGER.error("No ports generated");
             return;
         }
-
-        long nonce = Long.parseLong(config.getProperty("nonce", "0"));
 
         Iterator<Integer> portIterator = ports.iterator();
 

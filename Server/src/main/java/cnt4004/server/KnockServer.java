@@ -11,10 +11,6 @@ import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.net.SocketException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.SignatureException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,8 +34,8 @@ public class KnockServer {
     private final AtomicBoolean serviceOpen = new AtomicBoolean(false);
 
     public KnockServer(InetAddress bindAddress,
-                       Set<TrustedClient> trustedClients, PrivateKey serverKey, String portSecret, int portCount,
-                       int openTimeout) throws SocketException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+                       Set<TrustedClient> trustedClients, String portSecret, int portCount,
+                       int openTimeout) throws SocketException {
 
         this.bindAddress = bindAddress;
         this.packetConsumer = new PacketConsumer(this);
@@ -52,7 +48,7 @@ public class KnockServer {
         ServiceManager.getInstance().initializeService();
 
         LOGGER.debug("Initializing the protocol module");
-        ProtocolMap.initializeSignature(trustedClients, serverKey);
+        ProtocolMap.initializeHMAC(trustedClients);
 
     }
 

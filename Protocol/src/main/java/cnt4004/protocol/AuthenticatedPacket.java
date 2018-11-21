@@ -14,6 +14,10 @@ public abstract class AuthenticatedPacket implements Packet {
     private long nonce;
     private Instant timestamp;
 
+    public AuthenticatedPacket() {
+        timestamp = Instant.ofEpochSecond(0); // Beginning of time
+    }
+
     public String getClientIdentifier() {
         return clientIdentifier;
     }
@@ -70,7 +74,7 @@ public abstract class AuthenticatedPacket implements Packet {
 
     @Override
     public int length() {
-        return 4 + 4;
+        return 12;
     }
 
 }

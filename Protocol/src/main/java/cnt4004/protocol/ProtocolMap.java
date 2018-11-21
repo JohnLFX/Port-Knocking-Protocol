@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.security.*;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,11 +30,8 @@ public class ProtocolMap {
     /**
      * The expected amount of bytes to read and write for a DatagramSocket
      */
-    public static final int MAX_BUFFER = 700; // TODO Determine buffer
+    public static final int MAX_BUFFER = 300; // TODO Determine buffer
 
-    //TODO Pooling or multi-thread support for signature processing
-    private static Signature SIGNATURE_ALGORITHM;
-    private static int SIGNATURE_LENGTH;
     private static ConcurrentMap<String, TrustedClient> TRUSTED_CLIENTS;
 
     /**
@@ -54,27 +50,12 @@ public class ProtocolMap {
         }
     }
 
-    public static synchronized void initializeSignature(Set<TrustedClient> trustedClients, PrivateKey privateKey) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+    public static synchronized void initializeHMAC(Set<TrustedClient> trustedClients) {
 
         TRUSTED_CLIENTS = new ConcurrentHashMap<>();
 
         if (trustedClients != null)
             trustedClients.forEach(client -> TRUSTED_CLIENTS.put(client.getIdentifier(), client));
-
-        LOGGER.debug(TRUSTED_CLIENTS.toString());
-
-        String algorithmName = "SHA256with" + privateKey.getAlgorithm();
-
-        LOGGER.info("Signature algorithm to be used: " + algorithmName);
-
-        SIGNATURE_ALGORITHM = Signature.getInstance(algorithmName);
-        SIGNATURE_ALGORITHM.initSign(privateKey);
-
-        // Perform a test signature to determine byte length
-        // Also checks to see if signing works
-        SIGNATURE_LENGTH = sign("test".getBytes()).length;
-
-        LOGGER.debug("Initialized signature algorithm, signature length is " + SIGNATURE_LENGTH + " bytes");
 
     }
 
@@ -147,41 +128,35 @@ public class ProtocolMap {
                 return null;
             }
 
-            // Read signature
+            // Read MAC
 
-            byte[] signature = new byte[SIGNATURE_LENGTH];
-            int result = in.read(signature);
+            byte[] mac = new byte[TrustedClient.MAC_LENGTH];
+            int result = in.read(mac);
 
-            if (result != signature.length) {
-                LOGGER.debug("Buffer underflow for signature, discarding packet " +
-                        "(read " + result + ", expected " + SIGNATURE_LENGTH + ")");
+            if (result != mac.length) {
+                LOGGER.debug("Buffer underflow for MAC, discarding packet " +
+                        "(read " + result + ", expected " + TrustedClient.MAC_LENGTH + ")");
                 return null;
             }
 
             // Verify signature
-            try {
 
-                byte[] packetPayload = new byte[MAGIC.length + packet.length()];
-                System.arraycopy(payload, 0, packetPayload, 0, packetPayload.length);
+            byte[] packetPayload = new byte[MAGIC.length + packet.length()];
+            System.arraycopy(payload, 0, packetPayload, 0, packetPayload.length);
 
-                if (!verifySignature(client.getPublicKey(), packetPayload, signature)) {
+            if (!Arrays.equals(mac, client.createMAC(packetPayload))) {
 
-                    LOGGER.debug("Invalid signature, discarding packet");
-                    return null;
+                LOGGER.debug("Invalid MAC, discarding packet");
+                return null;
 
-                }
-
-            } catch (InvalidKeyException | SignatureException e) {
-                LOGGER.debug("Exception raised during signature verification", e);
-                return null; // Discard packet
             }
 
-            // Signature verified, update the max nonce
+            // MAC verified, update the max nonce
             client.setLargestNonceReceived(authenticatedPacket.getNonce());
 
             LOGGER.debug("Updating maximum nonce received for " + identifier + " to " + client.getLargestNonceReceived());
 
-            //TODO Save to trusted clients flat file, IO thread perhaps
+            //TODO Save new nonce value to trusted clients flat file, IO thread perhaps
 
         }
 
@@ -210,22 +185,19 @@ public class ProtocolMap {
 
         if (packet instanceof AuthenticatedPacket) {
 
-            byte[] signature;
+            TrustedClient client = TRUSTED_CLIENTS.get(((AuthenticatedPacket) packet).getClientIdentifier());
 
-            //TODO Reduce packet size by using HMAC with shared secret instead of RSA key-signing
+            if (client == null)
+                throw new IOException("No trusted client found to generate MAC for given identifier");
 
-            try {
-                signature = sign(packetPayload);
-            } catch (SignatureException e) {
-                throw new IOException(e);
-            }
+            byte[] mac = client.createMAC(packetPayload);
 
-            if (signature.length != SIGNATURE_LENGTH)
-                throw new IOException("Expected signature length of " + SIGNATURE_LENGTH + ", actual is " + signature.length);
+            if (mac.length != TrustedClient.MAC_LENGTH)
+                throw new IOException("Expected signature length of " + TrustedClient.MAC_LENGTH + ", actual is " + mac.length);
 
-            byte[] payload = new byte[packetPayload.length + signature.length];
+            byte[] payload = new byte[packetPayload.length + mac.length];
             System.arraycopy(packetPayload, 0, payload, 0, packetPayload.length);
-            System.arraycopy(signature, 0, payload, packetPayload.length, signature.length);
+            System.arraycopy(mac, 0, payload, packetPayload.length, mac.length);
 
             return payload;
 
@@ -235,17 +207,6 @@ public class ProtocolMap {
 
         }
 
-    }
-
-    private static synchronized boolean verifySignature(PublicKey publicKey, byte[] data, byte[] signature) throws InvalidKeyException, SignatureException {
-        SIGNATURE_ALGORITHM.initVerify(publicKey);
-        SIGNATURE_ALGORITHM.update(data);
-        return SIGNATURE_ALGORITHM.verify(signature);
-    }
-
-    private static synchronized byte[] sign(byte[] data) throws SignatureException {
-        SIGNATURE_ALGORITHM.update(data);
-        return SIGNATURE_ALGORITHM.sign();
     }
 
 }

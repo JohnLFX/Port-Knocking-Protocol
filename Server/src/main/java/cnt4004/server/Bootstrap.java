@@ -1,6 +1,5 @@
 package cnt4004.server;
 
-import cnt4004.protocol.RSAIO;
 import cnt4004.protocol.TrustedClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,9 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.security.KeyFactory;
-import java.security.KeyPair;
-import java.security.PublicKey;
 import java.util.HashSet;
 import java.util.Properties;
 import java.util.Scanner;
@@ -45,26 +41,7 @@ public class Bootstrap {
 
         InetAddress bindAddress = InetAddress.getByName(config.getProperty("bind-address"));
 
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-
         Set<TrustedClient> trustedClients = new HashSet<>();
-
-        Path keyPairPath = Paths.get(config.getProperty("server-keypair-path", "server_keypair.txt"));
-        KeyPair serverKeyPair;
-
-        if (Files.notExists(keyPairPath)) {
-
-            LOGGER.info("Generating server key pair for " + keyPairPath);
-
-            serverKeyPair = RSAIO.generateKeyPair();
-            RSAIO.save(keyPairPath, serverKeyPair);
-
-        } else {
-
-            LOGGER.info("Loading server key pair from " + keyPairPath);
-            serverKeyPair = RSAIO.load(keyPairPath);
-
-        }
 
         Path trustedClientsFile = Paths.get(config.getProperty("trusted-clients-path", "trusted_clients.txt"));
 
@@ -74,7 +51,6 @@ public class Bootstrap {
             Files.createFile(trustedClientsFile);
 
         }
-
 
         try (BufferedReader br = Files.newBufferedReader(trustedClientsFile)) {
 
@@ -91,14 +67,12 @@ public class Bootstrap {
                 int keyDelimiterIndex = line.lastIndexOf(' ');
 
                 String identifier = line.substring(0, delimiterIndex);
-                String encodedPublicKey = line.substring(delimiterIndex + 1, keyDelimiterIndex);
+                String sharedSecret = line.substring(delimiterIndex + 1, keyDelimiterIndex);
                 long nonce = Long.parseLong(line.substring(keyDelimiterIndex + 1));
-
-                PublicKey publicKey = RSAIO.decodePublicKey(keyFactory, encodedPublicKey);
 
                 LOGGER.info("Load trusted client profile for " + identifier + ", max nonce = " + nonce);
 
-                if (!trustedClients.add(new TrustedClient(identifier, publicKey, nonce)))
+                if (!trustedClients.add(new TrustedClient(identifier, sharedSecret, nonce)))
                     LOGGER.warn("Not adding duplicate trusted client: " + identifier);
 
             }
@@ -108,7 +82,6 @@ public class Bootstrap {
         KnockServer knockServer = new KnockServer(
                 bindAddress,
                 trustedClients,
-                serverKeyPair.getPrivate(),
                 config.getProperty("port-secret"),
                 Integer.parseInt(config.getProperty("ports", "3")),
                 Integer.parseInt(config.getProperty("open-timeout", "10"))

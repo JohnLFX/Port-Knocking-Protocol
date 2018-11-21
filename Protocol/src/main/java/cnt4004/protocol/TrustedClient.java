@@ -1,18 +1,34 @@
 package cnt4004.protocol;
 
-import java.security.PublicKey;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
 public class TrustedClient {
 
+    public static final int MAC_LENGTH = 32;
+    public static final String MAC_ALGORITHM = "HmacSHA256";
+
     private String identifier;
-    private PublicKey publicKey;
+    private Mac macAlgorithm;
     private long largestNonceReceived;
 
-    public TrustedClient(String identifier, PublicKey publicKey, long largestNonceReceived) {
+    public TrustedClient(String identifier, String sharedSecret, long largestNonceReceived) throws NoSuchAlgorithmException, InvalidKeyException {
         this.identifier = identifier;
-        this.publicKey = publicKey;
         this.largestNonceReceived = largestNonceReceived;
+
+        this.macAlgorithm = Mac.getInstance(MAC_ALGORITHM);
+        this.macAlgorithm.init(new SecretKeySpec(sharedSecret.getBytes(StandardCharsets.UTF_8), MAC_ALGORITHM));
+
+        if (this.macAlgorithm.doFinal("test".getBytes()).length != MAC_LENGTH)
+            throw new IllegalArgumentException("MAC algorithm does not generate the expected MAC_LENGTH");
+    }
+
+    public byte[] createMAC(byte[] payload) {
+        return macAlgorithm.doFinal(payload);
     }
 
     public long getLargestNonceReceived() {
@@ -32,14 +48,6 @@ public class TrustedClient {
 
     public void setIdentifier(String identifier) {
         this.identifier = identifier;
-    }
-
-    public PublicKey getPublicKey() {
-        return publicKey;
-    }
-
-    public void setPublicKey(PublicKey publicKey) {
-        this.publicKey = publicKey;
     }
 
     @Override

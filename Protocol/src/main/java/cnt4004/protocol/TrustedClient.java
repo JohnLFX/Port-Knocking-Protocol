@@ -27,7 +27,7 @@ public class TrustedClient {
             throw new IllegalArgumentException("MAC algorithm does not generate the expected MAC_LENGTH");
     }
 
-    public byte[] createMAC(byte[] payload) {
+    public synchronized byte[] createMAC(byte[] payload) {
         return macAlgorithm.doFinal(payload);
     }
 

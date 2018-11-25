@@ -10,22 +10,36 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class PacketConsumer implements Runnable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PacketConsumer.class);
 
+    /**
+     * KnockServer instance
+     */
     private final KnockServer knockServer;
 
-    //TODO Priority queue for knock sequences in progress?
-    private final BlockingQueue<QueuedPacket> queue = new ArrayBlockingQueue<>(100);
+    /**
+     * Queue of pending packets to be processed
+     */
+    // Capacity is 1,000 packets can be queued at most. This does not mean that memory
+    // has been allocated for 1,000 packets, but can dynamically grow to 1,000 packets.
+    private final BlockingQueue<QueuedPacket> queue = new LinkedBlockingQueue<>(1000);
 
     public PacketConsumer(KnockServer knockServer) {
         this.knockServer = knockServer;
     }
 
+    /**
+     * Offers a packet to the queue. This method may drop the packet if the queue is full.
+     *
+     * @param packet        The packet to add
+     * @param clientAddress The source address of the remote host (source fields in datagram)
+     * @param localAddress  The local address the packet was received on
+     */
     void queuePacket(Packet packet, SocketAddress clientAddress, SocketAddress localAddress) {
         queue.offer(new QueuedPacket(packet, clientAddress, localAddress));
     }
@@ -40,16 +54,13 @@ public class PacketConsumer implements Runnable {
             //noinspection InfiniteLoopStatement
             while (true) {
 
+                // take() is a blocking method that waits for a packet in the queue
                 QueuedPacket queuedPacket = queue.take();
 
-                switch (queuedPacket.packet.getID()) {
-
-                    case 0:
-                        receivedKnockPacket((KnockPacket) queuedPacket.packet, queuedPacket.clientAddress, queuedPacket.localAddress);
-                        break;
-                    default:
-                        LOGGER.debug("Unknown packet ID: " + queuedPacket.packet.getID());
-                        break;
+                if (queuedPacket.packet.getID() == 0) {
+                    receivedKnockPacket((KnockPacket) queuedPacket.packet, queuedPacket.clientAddress, queuedPacket.localAddress);
+                } else {
+                    LOGGER.debug("Unknown packet ID: " + queuedPacket.packet.getID());
                 }
 
             }
@@ -60,8 +71,15 @@ public class PacketConsumer implements Runnable {
 
     }
 
+    /**
+     * Processes a Knock Packet
+     * @param packet The Knock packet
+     * @param clientAddress The source address of the packet (datagram source address)
+     * @param localAddress The local address for which the packet was received on
+     */
     private void receivedKnockPacket(KnockPacket packet, SocketAddress clientAddress, SocketAddress localAddress) {
 
+        // Prevent the packet from allocating unnecessary memory
         if (packet.getMaxSequence() > (knockServer.getPortCount() - 1)) {
             LOGGER.debug("Discarding knock packet due to the maximum sequence number (" + packet.getMaxSequence()
                     + ") being greater than or equal to the port count (" + knockServer.getPortCount() + ")");
@@ -102,6 +120,9 @@ public class PacketConsumer implements Runnable {
     }
 }
 
+/**
+ * Represents a queued packet in the queue
+ */
 class QueuedPacket {
     final Packet packet;
     final SocketAddress clientAddress;

@@ -16,6 +16,9 @@ import java.util.Properties;
 import java.util.Scanner;
 import java.util.Set;
 
+/**
+ * Entry point
+ */
 public class Bootstrap {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Bootstrap.class);

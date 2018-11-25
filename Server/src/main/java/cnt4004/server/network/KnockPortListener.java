@@ -13,9 +13,12 @@ import java.util.concurrent.TimeUnit;
 
 import static cnt4004.protocol.ProtocolMap.MAX_BUFFER;
 
-public class UDPKnockPortListener implements Runnable {
+/**
+ * The port listener thread
+ */
+public class KnockPortListener implements Runnable {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(UDPKnockPortListener.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(KnockPortListener.class);
 
     private final InetAddress bindAddress;
     private final PacketConsumer packetConsumer;
@@ -23,7 +26,17 @@ public class UDPKnockPortListener implements Runnable {
     private final int portCount;
     private final int portGenOffset;
 
-    public UDPKnockPortListener(PacketConsumer packetConsumer, InetAddress bindAddress, String portSecret, int portCount, int portGenOffset) {
+    /**
+     * Creates a new instance of a port listener
+     *
+     * @param packetConsumer The consumer to submit packets to
+     * @param bindAddress    The address to bind on
+     * @param portSecret     The port secret to use for port generation
+     * @param portCount      The amount of ports the server generates
+     * @param portGenOffset  An offset this instance uses to determine
+     *                       what generated port to use in the list of generated ports
+     */
+    public KnockPortListener(PacketConsumer packetConsumer, InetAddress bindAddress, String portSecret, int portCount, int portGenOffset) {
         this.bindAddress = bindAddress;
         this.packetConsumer = packetConsumer;
         this.portSecret = portSecret;
@@ -59,10 +72,11 @@ public class UDPKnockPortListener implements Runnable {
 
                         previousTimeout = timeout;
                         socket.setSoTimeout(timeout);
-                        socket.receive(packet);
+                        socket.receive(packet); // Blocking method (until timeout)
 
                         Packet packetWrapper = ProtocolMap.decodePayload(packet.getData());
 
+                        // If a packet has been decoded, queue it for further processing
                         if (packetWrapper != null) {
 
                             packetConsumer.queuePacket(packetWrapper, packet.getSocketAddress(), socket.getLocalSocketAddress());
@@ -90,6 +104,11 @@ public class UDPKnockPortListener implements Runnable {
 
     }
 
+    /**
+     * Calculates the amount of milliseconds until the next minute
+     *
+     * @return The number of milliseconds until the next minute
+     */
     private static int calculateTimeout() {
         // Calculate time until the next minute
         Calendar c = Calendar.getInstance();

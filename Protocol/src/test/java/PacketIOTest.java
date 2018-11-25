@@ -42,7 +42,7 @@ public class PacketIOTest {
 
         TrustedClient client = new TrustedClient("com1", "testKey", 0);
 
-        ProtocolMap.initializeHMAC(new HashSet<>(Collections.singletonList(client)));
+        ProtocolMap.setTrustedClients(new HashSet<>(Collections.singletonList(client)));
 
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         DataOutputStream outStream = new DataOutputStream(outBuffer);

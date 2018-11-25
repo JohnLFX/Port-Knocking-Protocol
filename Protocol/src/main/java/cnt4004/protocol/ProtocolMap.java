@@ -29,9 +29,14 @@ public class ProtocolMap {
 
     /**
      * The expected amount of bytes to read and write for a DatagramSocket
+     * This value is used for the SO_RCVBUF datagram option/
      */
-    public static final int MAX_BUFFER = 300; // TODO Determine buffer
+    public static final int MAX_BUFFER = 100;
 
+    /**
+     * A map of Trusted clients. Each client is indexed by its identifier.
+     * The key is the client identifier.
+     */
     private static ConcurrentMap<String, TrustedClient> TRUSTED_CLIENTS;
 
     /**
@@ -50,7 +55,12 @@ public class ProtocolMap {
         }
     }
 
-    public static synchronized void initializeHMAC(Set<TrustedClient> trustedClients) {
+    /**
+     * Sets the trusted clients that the decoder will consider when verifying an {@link AuthenticatedPacket}
+     *
+     * @param trustedClients A set of trusted clients
+     */
+    public static void setTrustedClients(Set<TrustedClient> trustedClients) {
 
         TRUSTED_CLIENTS = new ConcurrentHashMap<>();
 
@@ -77,6 +87,12 @@ public class ProtocolMap {
         return null;
     }
 
+    /**
+     * Decodes a byte[] payload to a Packet object
+     * @param payload The byte[] array to decode
+     * @return A packet object deserialize from the payload, or null if the packet is corrupt.
+     * @throws IOException Decoding error
+     */
     public static Packet decodePayload(byte[] payload) throws IOException {
 
         if (payload == null)
@@ -129,7 +145,6 @@ public class ProtocolMap {
             }
 
             // Read MAC
-
             byte[] mac = new byte[TrustedClient.MAC_LENGTH];
             int result = in.read(mac);
 
@@ -139,8 +154,7 @@ public class ProtocolMap {
                 return null;
             }
 
-            // Verify signature
-
+            // Verify MAC
             byte[] packetPayload = new byte[MAGIC.length + packet.length()];
             System.arraycopy(payload, 0, packetPayload, 0, packetPayload.length);
 
@@ -195,6 +209,7 @@ public class ProtocolMap {
             if (mac.length != TrustedClient.MAC_LENGTH)
                 throw new IOException("Expected signature length of " + TrustedClient.MAC_LENGTH + ", actual is " + mac.length);
 
+            // Concat final payload
             byte[] payload = new byte[packetPayload.length + mac.length];
             System.arraycopy(packetPayload, 0, payload, 0, packetPayload.length);
             System.arraycopy(mac, 0, payload, packetPayload.length, mac.length);

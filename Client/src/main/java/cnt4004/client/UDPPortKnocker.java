@@ -56,7 +56,7 @@ public class UDPPortKnocker {
 
         LOGGER.info("Client identifier: " + clientIdentifier);
 
-        ProtocolMap.initializeHMAC(new HashSet<>(Collections.singletonList(new TrustedClient(clientIdentifier, sharedSecret, nonce))));
+        ProtocolMap.setTrustedClients(new HashSet<>(Collections.singletonList(new TrustedClient(clientIdentifier, sharedSecret, nonce))));
 
         DatagramSocket socket = new DatagramSocket();
 

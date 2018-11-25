@@ -15,7 +15,7 @@ public class AuthenticatedPacketEncodingTest {
 
         KnockPacket packet = new KnockPacket(client.getIdentifier(), 0, (byte) 0, (byte) 0);
 
-        ProtocolMap.initializeHMAC(new HashSet<>(Collections.singletonList(client)));
+        ProtocolMap.setTrustedClients(new HashSet<>(Collections.singletonList(client)));
 
         byte[] payload = ProtocolMap.encodePacket(packet);
         ProtocolMap.decodePayload(payload);

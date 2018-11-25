@@ -48,7 +48,7 @@ public class KnockServer {
         ServiceManager.getInstance().initializeService();
 
         LOGGER.debug("Initializing the protocol module");
-        ProtocolMap.initializeHMAC(trustedClients);
+        ProtocolMap.setTrustedClients(trustedClients);
 
     }
 

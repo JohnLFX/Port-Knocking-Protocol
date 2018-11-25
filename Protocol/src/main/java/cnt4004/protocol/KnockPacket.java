@@ -4,11 +4,23 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
+/**
+ * A knock packet is used for sending a single knock to a specific UDP port.
+ * This class contains the encoding and decoding for a Knock packet.
+ * This class is comparable to another KnockPacket. The order compares {@link KnockPacket#getSequence()}
+ * in ascending order.
+ */
 public class KnockPacket extends AuthenticatedPacket implements Comparable<KnockPacket> {
 
+    /**
+     * Sequence ID
+     */
     private byte sequence;
+
+    /**
+     * Maximum sequence ID
+     */
     private byte maxSequence;
-    //TODO Vulnerability: What if mallory modifies the destination port in transport layer?
 
     public KnockPacket() {
     }
@@ -20,10 +32,20 @@ public class KnockPacket extends AuthenticatedPacket implements Comparable<Knock
         setSequence(sequence);
     }
 
+    /**
+     * Sequence ID
+     *
+     * @return The sequence ID
+     */
     public byte getSequence() {
         return sequence;
     }
 
+    /**
+     * Sets the sequence ID
+     * @param sequence The new sequence ID
+     * @throws IllegalArgumentException If the sequence ID is negative or larger than {@link KnockPacket#getMaxSequence()}}
+     */
     public void setSequence(byte sequence) {
         if (sequence < 0)
             throw new IllegalArgumentException("Sequence cannot be negative");
@@ -34,10 +56,20 @@ public class KnockPacket extends AuthenticatedPacket implements Comparable<Knock
         this.sequence = sequence;
     }
 
-    public short getMaxSequence() {
+    /**
+     * Max sequence ID
+     *
+     * @return The max sequence ID
+     */
+    public byte getMaxSequence() {
         return maxSequence;
     }
 
+    /**
+     * Sets the maximum sequence ID
+     * @param maxSequence The new maximum sequence ID
+     * @throws IllegalArgumentException If the parameter is less than {@link KnockPacket#getSequence()}
+     */
     public void setMaxSequence(byte maxSequence) {
         if (maxSequence < sequence)
             throw new IllegalArgumentException("Max sequence cannot be less than sequence");
@@ -71,7 +103,7 @@ public class KnockPacket extends AuthenticatedPacket implements Comparable<Knock
 
     @Override
     public int compareTo(KnockPacket o) {
-        return Short.compare(sequence, o.sequence);
+        return Byte.compare(sequence, o.sequence);
     }
 
     @Override

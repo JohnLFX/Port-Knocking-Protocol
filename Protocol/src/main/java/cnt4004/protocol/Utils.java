@@ -10,22 +10,43 @@ import java.util.Random;
 
 public class Utils {
 
+    /**
+     * The maximum port number that is possible to generate, inclusive.
+     * 65535 is the maximum value permitted by UDP.
+     */
     private static final int MAX_PORT_NUMBER = 65535;
+
+    /**
+     * The minimum port number that is possible to generate, inclusive.
+     * Ports 0-1024 are usually reserved in most operating systems.
+     */
     private static final int MIN_PORT_NUMBER = 1025;
 
     private Utils() {
     }
 
+    /**
+     * The md5 hash algorithm
+     */
     private static final MessageDigest HASH_ALGORITHM;
 
     static {
         try {
             HASH_ALGORITHM = MessageDigest.getInstance("MD5");
         } catch (NoSuchAlgorithmException e) {
+            // Every machine should have the MD5 algorithm...
+            // But if not, crash the program
             throw new RuntimeException(e);
         }
     }
 
+    /**
+     * Generates {@code portCount} ports using the current unix time in minutes and a port secret.
+     *
+     * @param portSecret The port secret
+     * @param portCount  The amount of ports to generate
+     * @return A list of {@code portCount} distinct ports
+     */
     public synchronized static List<Integer> getPorts(String portSecret, int portCount) {
 
         if (portSecret == null)
@@ -59,6 +80,11 @@ public class Utils {
 
     }
 
+    /**
+     * Determines if {@code port} is within {@link Utils#MIN_PORT_NUMBER} and {@link Utils#MAX_PORT_NUMBER}
+     * @param port The port to check
+     * @return True if it is valid, false otherwise
+     */
     private static boolean validPort(int port) {
         return port > MIN_PORT_NUMBER && port < MAX_PORT_NUMBER;
     }

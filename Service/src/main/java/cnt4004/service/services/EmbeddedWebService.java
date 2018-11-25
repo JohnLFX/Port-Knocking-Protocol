@@ -55,24 +55,10 @@ public class EmbeddedWebService extends NanoHTTPD implements Service {
             case "/testData.dat":
                 return newChunkedResponse(Response.Status.OK, "application/octet-stream",
                         new InputStream() {
-
-                            /* Random bytes generator */
-
-                            int counter = (int) Math.pow(10, 8); // 100 Megabytes
-
+                            /* Infinite random bytes generator */
                             @Override
                             public int read() {
-
-                                if (counter-- > 0) {
-
-                                    return 1 + ThreadLocalRandom.current().nextInt(240);
-
-                                } else {
-
-                                    return 0;
-
-                                }
-
+                                return ThreadLocalRandom.current().nextInt(256);
                             }
                         });
             default:

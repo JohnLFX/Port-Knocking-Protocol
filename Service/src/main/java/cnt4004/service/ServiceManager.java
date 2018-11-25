@@ -14,6 +14,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Properties;
 
+/**
+ * The service manager is a singleton instance used for managing a single service
+ */
 public class ServiceManager {
 
     private static ServiceManager INSTANCE;
@@ -22,6 +25,8 @@ public class ServiceManager {
     private Service service;
 
     private ServiceManager() {
+
+        // Load stuff from the configuration
 
         Properties config = new Properties();
 
@@ -44,13 +49,12 @@ public class ServiceManager {
             }
 
         } catch (IOException e) {
-
             LOGGER.error("Failed to read service configuration", e);
-
         }
 
         InetSocketAddress bindAddress = new InetSocketAddress(config.getProperty("service-bind"), Integer.parseInt(config.getProperty("service-port")));
 
+        // Determine what type of service to run
         if (Boolean.valueOf(config.getProperty("use-embedded-webserver", "true"))) {
 
             this.serviceType = ServiceType.EMBEDDED_WEBSERVER;
@@ -65,32 +69,45 @@ public class ServiceManager {
 
     }
 
+    /**
+     * Initializes the service. See {@link Service#initialize()}
+     */
     public void initializeService() {
         LOGGER.info("Setting up " + serviceType.toString().toLowerCase() + " service");
         service.initialize();
     }
 
+    /**
+     * Shuts down the service. See {@link Service#shutdown()}
+     */
     public void shutdownService() {
-
         if (service != null) {
-
             LOGGER.info("Shutting down " + serviceType.toString().toLowerCase() + " service");
             service.shutdown();
-
         }
-
     }
 
+    /**
+     * Opens the service. See {@link Service#open()}
+     */
     public void openService() {
         if (service != null)
             service.open();
     }
 
+    /**
+     * Closes the service. See {@link Service#close()}
+     */
     public void closeService() {
         if (service != null)
             service.close();
     }
 
+    /**
+     * Returns a singleton instance of the service manager
+     *
+     * @return The instance
+     */
     public static ServiceManager getInstance() {
         if (INSTANCE == null)
             INSTANCE = new ServiceManager();

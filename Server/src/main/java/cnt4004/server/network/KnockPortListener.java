@@ -91,6 +91,8 @@ public class KnockPortListener implements Runnable {
 
                 } while (calculateTimeout() < previousTimeout);
 
+                socket.close();
+
             } catch (SocketException e) {
                 LOGGER.warn("Socket exception", e);
                 try {

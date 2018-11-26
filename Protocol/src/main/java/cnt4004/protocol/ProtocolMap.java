@@ -89,6 +89,7 @@ public class ProtocolMap {
 
     /**
      * Decodes a byte[] payload to a Packet object
+     *
      * @param payload The byte[] array to decode
      * @return A packet object deserialize from the payload, or null if the packet is corrupt.
      * @throws IOException Decoding error
@@ -166,7 +167,8 @@ public class ProtocolMap {
             }
 
             // MAC verified, update the max nonce
-            client.setLargestNonceReceived(authenticatedPacket.getNonce());
+            if (client.getLargestNonceReceived() < authenticatedPacket.getNonce())
+                client.setLargestNonceReceived(authenticatedPacket.getNonce());
 
             LOGGER.debug("Updating maximum nonce received for " + identifier + " to " + client.getLargestNonceReceived());
 

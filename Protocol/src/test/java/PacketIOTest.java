@@ -12,6 +12,7 @@ import java.io.DataOutputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.util.*;
 
 public class PacketIOTest {
@@ -41,6 +42,8 @@ public class PacketIOTest {
         }
 
         TrustedClient client = new TrustedClient("com1", "testKey", 0);
+
+        TrustedClient.setFlatFile(Files.createTempFile("trust-clients-tmp", ".txt"));
 
         ProtocolMap.setTrustedClients(new HashSet<>(Collections.singletonList(client)));
 

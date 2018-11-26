@@ -10,3 +10,15 @@ dependencies {
     compile project(':Protocol')
     compile project(':Service')
 }
+
+jar {
+    manifest {
+        attributes(
+                'Class-Path': configurations.compileClasspath.files.collect { "$it.name" }.join(' '),
+                'Main-Class': 'cnt4004.server.Bootstrap'
+        )
+    }
+    from {
+        configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}

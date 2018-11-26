@@ -9,3 +9,15 @@ sourceCompatibility = 1.8
 dependencies {
     compile project(':Protocol')
 }
+
+jar {
+    manifest {
+        attributes(
+                'Class-Path': configurations.compileClasspath.files.collect { "$it.name" }.join(' '),
+                'Main-Class': 'cnt4004.client.PortKnocker'
+        )
+    }
+    from {
+        configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}

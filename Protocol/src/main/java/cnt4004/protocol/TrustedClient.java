@@ -11,6 +11,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A TrustedClient is an object representing a client that the server trusts.
@@ -30,7 +31,7 @@ public class TrustedClient {
     private final String sharedSecret;
     private final String identifier;
     private final Mac macAlgorithm;
-    private long largestNonceReceived;
+    private AtomicLong largestNonceReceived;
 
     /**
      * Creates a new TrustedClient object. This method will initialize a local MAC algorithm.
@@ -44,7 +45,7 @@ public class TrustedClient {
      */
     public TrustedClient(String identifier, String sharedSecret, long largestNonceReceived) throws NoSuchAlgorithmException, InvalidKeyException {
         this.identifier = identifier;
-        this.largestNonceReceived = largestNonceReceived;
+        this.largestNonceReceived = new AtomicLong(largestNonceReceived);
         this.sharedSecret = sharedSecret;
 
         this.macAlgorithm = Mac.getInstance(MAC_ALGORITHM);
@@ -70,7 +71,7 @@ public class TrustedClient {
      * @return The largest known nonce received from this client
      */
     public long getLargestNonceReceived() {
-        return largestNonceReceived;
+        return largestNonceReceived.get();
     }
 
     /**
@@ -83,7 +84,7 @@ public class TrustedClient {
         if (largestNonceReceived < 0)
             throw new IllegalArgumentException("Nonce cannot be negative");
 
-        this.largestNonceReceived = largestNonceReceived;
+        this.largestNonceReceived.set(largestNonceReceived);
     }
 
     /**

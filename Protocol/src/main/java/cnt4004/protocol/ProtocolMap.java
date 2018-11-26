@@ -170,7 +170,8 @@ public class ProtocolMap {
 
             LOGGER.debug("Updating maximum nonce received for " + identifier + " to " + client.getLargestNonceReceived());
 
-            //TODO Save new nonce value to trusted clients flat file, IO thread perhaps
+            // Save new nonce to file
+            TrustedClient.saveTrustedClients(TRUSTED_CLIENTS.values());
 
         }
 

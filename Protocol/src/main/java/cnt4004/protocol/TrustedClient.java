@@ -2,9 +2,14 @@ package cnt4004.protocol;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Collection;
 import java.util.Objects;
 
 /**
@@ -13,12 +18,18 @@ import java.util.Objects;
  */
 public class TrustedClient {
 
+    /**
+     * Path to the text file (trusted_clients.txt)
+     */
+    private static Path FLAT_FILE;
+
     /* Constants for the MAC algorithm */
     static final int MAC_LENGTH = 32;
     private static final String MAC_ALGORITHM = "HmacSHA256";
 
-    private String identifier;
-    private Mac macAlgorithm;
+    private final String sharedSecret;
+    private final String identifier;
+    private final Mac macAlgorithm;
     private long largestNonceReceived;
 
     /**
@@ -34,9 +45,10 @@ public class TrustedClient {
     public TrustedClient(String identifier, String sharedSecret, long largestNonceReceived) throws NoSuchAlgorithmException, InvalidKeyException {
         this.identifier = identifier;
         this.largestNonceReceived = largestNonceReceived;
+        this.sharedSecret = sharedSecret;
 
         this.macAlgorithm = Mac.getInstance(MAC_ALGORITHM);
-        this.macAlgorithm.init(new SecretKeySpec(sharedSecret.getBytes(StandardCharsets.UTF_8), MAC_ALGORITHM));
+        this.macAlgorithm.init(new SecretKeySpec(this.sharedSecret.getBytes(StandardCharsets.UTF_8), MAC_ALGORITHM));
 
         if (this.macAlgorithm.doFinal("test".getBytes()).length != MAC_LENGTH)
             throw new IllegalArgumentException("MAC algorithm does not generate the expected MAC_LENGTH");
@@ -81,6 +93,40 @@ public class TrustedClient {
      */
     public String getIdentifier() {
         return identifier;
+    }
+
+    /**
+     * Sets the flat file path that {@link TrustedClient#saveTrustedClients(Collection)} uses
+     *
+     * @param flatFile The path
+     */
+    public static void setFlatFile(Path flatFile) {
+        FLAT_FILE = flatFile;
+    }
+
+    /**
+     * Writes a collection of trusted clients to the path defined by {@link TrustedClient#setFlatFile(Path)}
+     *
+     * @param trustedClients Collection of {@link TrustedClient}
+     * @throws IOException IO Exception occurred while writing to file
+     */
+    static void saveTrustedClients(Collection<TrustedClient> trustedClients) throws IOException {
+
+        try (PrintWriter writer = new PrintWriter(Files.newOutputStream(FLAT_FILE))) {
+
+            for (TrustedClient client : trustedClients) {
+
+                writer.print(client.identifier);
+                writer.print(' ');
+                writer.print(client.sharedSecret);
+                writer.print(' ');
+                writer.print(client.largestNonceReceived);
+                writer.println();
+
+            }
+
+        }
+
     }
 
     /*

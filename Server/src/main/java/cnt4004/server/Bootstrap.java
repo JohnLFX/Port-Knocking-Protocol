@@ -44,6 +44,8 @@ public class Bootstrap {
 
         InetAddress bindAddress = InetAddress.getByName(config.getProperty("bind-address"));
 
+        // Read a set of trusted clients
+
         Set<TrustedClient> trustedClients = new HashSet<>();
 
         Path trustedClientsFile = Paths.get(config.getProperty("trusted-clients-path", "trusted_clients.txt"));
@@ -55,14 +57,19 @@ public class Bootstrap {
 
         }
 
+        // Flat file for trusted clients, used for updating the nonce in the file
+        TrustedClient.setFlatFile(trustedClientsFile);
+
         try (BufferedReader br = Files.newBufferedReader(trustedClientsFile)) {
 
             String line;
 
             while ((line = br.readLine()) != null) {
 
+                // Remove extra whitespace
                 line = line.trim();
 
+                // Skip empty lines
                 if (line.isEmpty())
                     continue;
 
@@ -82,6 +89,7 @@ public class Bootstrap {
 
         }
 
+        // Create a new Knock server instance
         KnockServer knockServer = new KnockServer(
                 bindAddress,
                 trustedClients,
@@ -94,6 +102,7 @@ public class Bootstrap {
 
         boolean readingConsole = true;
 
+        // Basic commands (only to cleanly stop)
         while (readingConsole && scanner.hasNextLine()) {
 
             String command = scanner.nextLine().toLowerCase();

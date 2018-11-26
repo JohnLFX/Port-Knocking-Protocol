@@ -20,6 +20,7 @@ public class KnockServer {
 
     private final InetAddress bindAddress;
     private final ConcurrentMap<String, KnockSession> sessions = new ConcurrentHashMap<>();
+    private final Set<TrustedClient> trustedClients;
     private final PacketConsumer packetConsumer;
     private final int serviceTimeout;
     private final String portSecret;
@@ -46,6 +47,7 @@ public class KnockServer {
                        int openTimeout) {
 
         this.bindAddress = bindAddress;
+        this.trustedClients = trustedClients;
         this.packetConsumer = new PacketConsumer(this);
         this.serviceTimeout = openTimeout;
         this.portSecret = portSecret;
@@ -189,5 +191,13 @@ public class KnockServer {
         }
     }
 
+    /**
+     * Set of trusted clients
+     *
+     * @return Trusted clients
+     */
+    public Set<TrustedClient> getTrustedClients() {
+        return trustedClients;
+    }
 }
 

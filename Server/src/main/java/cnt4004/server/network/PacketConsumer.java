@@ -1,15 +1,19 @@
 package cnt4004.server.network;
 
+import cnt4004.protocol.AuthenticatedPacket;
 import cnt4004.protocol.KnockPacket;
 import cnt4004.protocol.Packet;
+import cnt4004.protocol.TrustedClient;
 import cnt4004.server.KnockServer;
 import cnt4004.server.KnockSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -73,9 +77,10 @@ public class PacketConsumer implements Runnable {
 
     /**
      * Processes a Knock Packet
-     * @param packet The Knock packet
+     *
+     * @param packet        The Knock packet
      * @param clientAddress The source address of the packet (datagram source address)
-     * @param localAddress The local address for which the packet was received on
+     * @param localAddress  The local address for which the packet was received on
      */
     private void receivedKnockPacket(KnockPacket packet, SocketAddress clientAddress, SocketAddress localAddress) {
 
@@ -105,6 +110,29 @@ public class PacketConsumer implements Runnable {
             if (receivedSequence.equals(knockServer.getPorts())) {
 
                 LOGGER.debug("Correct knock sequence!");
+
+                Set<TrustedClient> clientSet = knockServer.getTrustedClients();
+
+                TrustedClient client = clientSet.stream()
+                        .filter(c -> c.getIdentifier().equals(packet.getClientIdentifier()))
+                        .findFirst().orElse(null);
+
+                long largestNonce = session.getKnockSequence().keySet().stream()
+                        .mapToLong(AuthenticatedPacket::getNonce)
+                        .filter(p -> p >= 0).max().orElse(0);
+
+                if (client != null && client.getLargestNonceReceived() < largestNonce) {
+
+                    LOGGER.debug("Updating nonce for " + client.getIdentifier() + " to " + largestNonce);
+                    client.setLargestNonceReceived(largestNonce);
+                    try {
+                        TrustedClient.saveTrustedClients(clientSet);
+                    } catch (IOException e) {
+                        LOGGER.error("Saving nonce", e);
+                    }
+
+                }
+
                 knockServer.openTimedService();
 
             } else {

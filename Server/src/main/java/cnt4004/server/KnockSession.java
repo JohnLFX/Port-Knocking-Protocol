@@ -65,4 +65,13 @@ public class KnockSession {
         return new ArrayList<>(knockSequence.values());
     }
 
+    /**
+     * Gets the current knock sequence map
+     *
+     * @return The map
+     */
+    public SortedMap<KnockPacket, Integer> getKnockSequence() {
+        return knockSequence;
+    }
+
 }

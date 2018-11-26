@@ -166,15 +166,6 @@ public class ProtocolMap {
 
             }
 
-            // MAC verified, update the max nonce
-            if (client.getLargestNonceReceived() < authenticatedPacket.getNonce())
-                client.setLargestNonceReceived(authenticatedPacket.getNonce());
-
-            LOGGER.debug("Updating maximum nonce received for " + identifier + " to " + client.getLargestNonceReceived());
-
-            // Save new nonce to file
-            TrustedClient.saveTrustedClients(TRUSTED_CLIENTS.values());
-
         }
 
         return packet;

@@ -111,7 +111,7 @@ public class TrustedClient {
      * @param trustedClients Collection of {@link TrustedClient}
      * @throws IOException IO Exception occurred while writing to file
      */
-    static void saveTrustedClients(Collection<TrustedClient> trustedClients) throws IOException {
+    public static void saveTrustedClients(Collection<TrustedClient> trustedClients) throws IOException {
 
         try (PrintWriter writer = new PrintWriter(Files.newOutputStream(FLAT_FILE))) {
 
@@ -121,7 +121,7 @@ public class TrustedClient {
                 writer.print(' ');
                 writer.print(client.sharedSecret);
                 writer.print(' ');
-                writer.print(client.largestNonceReceived);
+                writer.print(client.getLargestNonceReceived());
                 writer.println();
 
             }
